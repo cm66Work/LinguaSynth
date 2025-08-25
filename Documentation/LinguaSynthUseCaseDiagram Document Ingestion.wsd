@@ -1,0 +1,26 @@
+@startuml LinguaSynth_UseCaseDiagram_DocumentIngestion
+title LinguaSynth Use Case Diagram: Document Ingestion
+left to right direction
+
+' Define Actors
+actor Frontend
+actor "GeneratorManager" as LLM 
+actor "ServerManager" as Server
+actor "DocumentReferenceManager" as SS
+
+' Define Use Cases
+rectangle LinguaSynth {
+  usecase "Ingest \n Document" as ingestDocument
+  usecase "Summarize \n text" as summarizeText
+  usecase "Ask \n Question" as askQuestion 
+}
+
+
+' Define Relationships
+Frontend -- ingestDocument
+Frontend -- askQuestion
+summarizeText -left- ingestDocument
+summarizeText -right- askQuestion 
+summarizeText -- LLM
+
+@enduml

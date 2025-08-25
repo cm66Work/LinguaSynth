@@ -1,0 +1,7 @@
+@startuml LinguaSynthSequenceDiagram
+title LinguaSynth Sequence Diagram
+
+' Define Notations
+
+participant 
+@enduml

@@ -1,0 +1,49 @@
+@startuml LinguaSynthComponentDiagram
+<style>
+interface {
+  HorizontalAlignment left
+  FontSize 12
+}
+</style>
+
+title LinguaSynth Component Diagram
+
+' Define main components
+component "LinguaSynth" as LS
+component "Typesense Server" as Server
+component "LLM" as LLM
+component "Storage Server" as SS
+
+' Define Interfaces
+' Storage Server
+interface DocumentReferenceManager as DS
+DS -up- SS
+
+' LLM
+interface GeneratorManager as generate
+generate -up- LLM 
+
+' Typesense Server
+interface ServerManager as nlSearch
+nlSearch -up- Server
+Server - generate 
+
+' Lingua Synth
+LS -up- DS
+LS -up- generate
+LS -up- nlSearch 
+LS -right- DocumentIndexer
+LS -left- Search 
+
+' Notes
+note as adminNote
+  read / write
+end note
+note as userNote 
+ read only 
+end note
+
+DocumentIndexer .right. adminNote
+Search .left. userNote
+@enduml
+
