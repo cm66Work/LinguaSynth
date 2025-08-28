@@ -1,0 +1,32 @@
+@startuml LinguaSynth_UseCaseDiagram_QuestionAsking
+title LinguaSynth Use Case Diagram: Question Asking
+left to right direction
+
+' # Define Actors
+actor "User" as user
+actor "Reference Database" as referenceDatabase
+actor "Typesense Server" as typesenseServer
+actor "Ollama LLM" as LLM
+
+' # Define Use Cases
+rectangle LinguaSynth {
+  usecase "Ask Questions" as askQuestions
+  usecase "Generate Answers" as generateAnswers
+  usecase "Get Referenced Documents" as getReferencedDocuments
+}
+
+' # relations
+user -- askQuestions
+askQuestions -down- typesenseServer
+
+askQuestions .left.|> generateAnswers : <<include>>
+generateAnswers -down- LLM
+
+askQuestions .right.|> getReferencedDocuments : <<include>
+getReferencedDocuments -down- referenceDatabase
+
+' ## Organization ##
+LinguaSynth -[hidden]down- typesenseServer
+typesenseServer -[hidden]left- LLM
+typesenseServer -[hidden]right- referenceDatabase
+@enduml
