@@ -1,0 +1,6 @@
+# Typesense
+/Backend/.env
+/Backend/Typesense/data/*
+
+# Ollama
+/Backend/Ollama/data/*
