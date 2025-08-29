@@ -29,3 +29,6 @@ images_delete:
 # ──────────────────────────────────────────────────────────────────────────────
 get_images:
 	docker images
+
+ignore_test:
+	curl http://localhost:11434/api/generate -d '{ "model": "dolphin3:8b", "prompt":" Why is the colour of sea blue ?" }'
