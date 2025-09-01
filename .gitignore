@@ -3,4 +3,7 @@
 /Backend/Typesense/data/*
 
 # Ollama
+/Backend/Typesense/data/*
+/Backend/LinguaSynth/data/*
 /Backend/Ollama/data/*
+/Backend/Postgres/data/*

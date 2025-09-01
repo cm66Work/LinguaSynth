@@ -1,0 +1,16 @@
+# Compose files for typesense server
+services:
+  typesense:
+    image: typesense/typesense:29.0
+    container_name: "typesense_server"
+    restart: on-failure
+    ports:
+      - "8108:8108"
+    volumes:
+      - ./data:/data
+    environment:
+      TYPESENSE_API_KEY: ${TYPESENSE_API_KEY}
+      TYPESENSE_DATA_DIR: /data
+    command: '--enable-cors'
+    depends_on:
+      - ollama
