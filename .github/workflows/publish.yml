@@ -30,6 +30,6 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: .
-          file: Dockerfile
+          file: ./Backups/docker-compose.yml
           push: true
           tags: ericasky/main:linguaSynth-latest
