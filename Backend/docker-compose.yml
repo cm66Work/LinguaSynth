@@ -4,3 +4,9 @@ include:
   - ./Typesense/docker-compose.yml
   - ./Postgres/docker-compose.yml
   - ./LinguaSynth/docker-compose.yml
+
+secrets:
+  typesense_api_key:
+    file: ${SECRETS_PATH}/Typesense/typesense_api_key.txt
+  typesense_search_api_key:
+    file: ${SECRETS_PATH}/Typesense/typesense_search_api_key.txt
