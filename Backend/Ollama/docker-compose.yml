@@ -5,6 +5,6 @@ services:
     container_name: "ollama_server"
     restart: on-failure
     ports:
-      - "11434:11434"
+      - "11434:${OLLAMA_PORT}"
     volumes:
       - ./data:/root/.ollama
