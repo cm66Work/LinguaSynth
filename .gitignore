@@ -1,5 +1,5 @@
 # Typesense
-/Backend/.env
+# /Backend/.env <- this is used for internal testing
 /Backend/Typesense/data/*
 
 # Ollama
