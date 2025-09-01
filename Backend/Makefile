@@ -11,19 +11,19 @@ start-d:
 # ──────────────────────────────────────────────────────────────────────────────
 # Shutdown all docker containers 
 # ──────────────────────────────────────────────────────────────────────────────
-down:
+stop:
 	docker compose down 
 # ──────────────────────────────────────────────────────────────────────────────
 # Shutdown all docker containers and clean up volumes
 # ──────────────────────────────────────────────────────────────────────────────
-down-f:
+stop-f:
 	docker compose down -v --remove-orphans
 	docker volume prune -f
 # ──────────────────────────────────────────────────────────────────────────────
 # delete all docker images on the machine. 
 # ──────────────────────────────────────────────────────────────────────────────
 images_delete:
-	docker rmi -f $(sudo docker images -aq) 
+	docker rmi -f $(docker images -aq) 
 # ──────────────────────────────────────────────────────────────────────────────
 # Get a list of all docker images that are currently on the machine.
 # ──────────────────────────────────────────────────────────────────────────────

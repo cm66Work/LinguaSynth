@@ -1,0 +1,22 @@
+# Compose file for the postgres DB
+services:
+  db:
+    container_name: db
+    image: postgres:13
+    restart: always
+    environment:
+      POSTGRES_USER: /run/secrets/postgres_username
+      POSTGRES_PASSWORD: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - 5432:${POSTGRES_PORT}
+    volumes:
+      - ./data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -d postgres" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    secrets:
+      - postgres_username
+      - postgres_password
