@@ -5,11 +5,11 @@ services:
     image: postgres:13
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: postgres
+      POSTGRES_USER: /run/secrets/postgres_username
+      POSTGRES_PASSWORD: /run/secrets/postgres_password
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - 5432:5432
+      - 5432:${POSTGRES_PORT}
     volumes:
       - ./data:/var/lib/postgresql/data
     healthcheck:
@@ -17,3 +17,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
+    secrets:
+      - postgres_username
+      - postgres_password
