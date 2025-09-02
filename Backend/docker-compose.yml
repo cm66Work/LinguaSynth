@@ -3,6 +3,7 @@ include:
   - ./Ollama/docker-compose.yml
   - ./Typesense/docker-compose.yml
   - ./Postgres/docker-compose.yml
+  - ./MinIO/docker-compose.yml
   - ./LinguaSynth/docker-compose.yml
 
 secrets:
@@ -16,3 +17,8 @@ secrets:
     file: ${SECRETS_PATH}/Postgres/postgres_username.txt
   postgres_password:
     file: ${SECRETS_PATH}/Postgres/postgres_password.txt
+  # MinIO
+  minio_root_username:
+    file: ${SECRETS_PATH}/MinIO/minio_root_username.txt
+  minio_root_password:
+    file: ${SECRETS_PATH}/MinIO/minio_root_password.txt
