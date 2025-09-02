@@ -2,11 +2,11 @@
 services:
   db:
     container_name: db
-    image: postgres:13
+    image: postgres:16.3
     restart: always
     environment:
-      POSTGRES_USER: /run/secrets/postgres_username
-      POSTGRES_PASSWORD: /run/secrets/postgres_password
+      POSTGRES_USER_FILE: /run/secrets/postgres_username
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - 5432:${POSTGRES_PORT}
