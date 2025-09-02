@@ -23,7 +23,7 @@ stop-f:
 # delete all docker images on the machine. 
 # ──────────────────────────────────────────────────────────────────────────────
 images_delete:
-	docker rmi -f $(docker images -aq) 
+	docker rm -vf $(docker ps -aq) 
 # ──────────────────────────────────────────────────────────────────────────────
 # Get a list of all docker images that are currently on the machine.
 # ──────────────────────────────────────────────────────────────────────────────

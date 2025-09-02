@@ -1,0 +1,30 @@
+# Compose file for MinIO
+
+services:
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-07-18T21-56-31Z-cpuv1
+    container_name: minio
+    command: server --console-address ":${MINIO_CONSOLE_PORT}" /minio/mnt/data
+    restart: on-failure
+    ports:
+      - 9000:${MINIO_API_PORT}
+      - 9001:${MINIO_CONSOLE_PORT}
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_username
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    volumes:
+      - type: bind
+        source: ./data/compose
+        target: /mnt/data
+      - type: bind
+        source: ./data/default/minio
+        target: /ect/config.env
+    secrets:
+      - minio_root_username
+      - minio_root_password
+    healthcheck:
+      test: [ "CMD", "mc", "ready", "local" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 30s

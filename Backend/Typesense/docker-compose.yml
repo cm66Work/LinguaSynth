@@ -9,8 +9,9 @@ services:
     volumes:
       - ./data:/data
     environment:
-      TYPESENSE_API_KEY: /run/secrets/typesense_api_key
-      TYPESENSE_SEARCH_API_KEY: /run/secrets/typesense_search_api_key
+      # Typesense does not support secret files, so we have to read the file value.
+      TYPESENSE_API_KEY: $(cat /run/secrets/typesense_api_key)
+      TYPESENSE_SEARCH_API_KEY: $(cat /run/secrets/typesense_search_api_key)
       TYPESENSE_DATA_DIR: /data
     command: '--enable-cors'
     depends_on:
@@ -18,3 +19,9 @@ services:
     secrets:
       - typesense_api_key
       - typesense_search_api_key
+    healthcheck:
+      test: [ "CMD", "curl http://localhost:${TYPESENSE_PORT}/health" ]
+      interval: 1m
+      timeout: 1m30s
+      retries: 5
+      start_period: 30s
