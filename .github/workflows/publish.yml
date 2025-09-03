@@ -9,7 +9,7 @@ on:
 
 jobs:
   deploy:
-    name: build & push image to docker hub
+    name: Docker build test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -21,6 +21,18 @@ jobs:
         with:
           compose-file: "./Backend/docker-compose.yml"
 
-      # - name: Execute tests in the running services
-      #   run: |
-      #     docker compose exec test-app pytest
+  LinguaSynth_Test:
+    name: LinguaSynth run pytests 
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: 'Development'
+
+      - name: Run docker compose
+        uses: hoverkraft-tech/compose-action@v2.0.1
+        with:
+          compose-file: "./Backend/docker-compose.yml"
+      - name: Run unit tests on LinguaSynth container
+        run: docker exec -it linguaSynth uv run -m pytest
