@@ -1,3 +1,12 @@
 # Separate docker compose for LinguaSynth
-
-
+services:
+  backend:
+    container_name: linguaSynth
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - UVICORN_RELOAD=true
+    volumes:
+      - ./app:/app
+    tty: true
