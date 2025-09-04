@@ -1,6 +1,5 @@
 name: pipeline
 on:
-  # workflow_dispatch:
   pull_request:
     branches:
       - 'Development'
@@ -33,7 +32,8 @@ jobs:
       #   uses: hoverkraft-tech/compose-action@v2.0.1
       #   with:
       #     compose-file: "./Backend/docker-compose.yml"
-
+      - name: change directory to Backend
+        run: cd Backend
       - name: Run unit tests on LinguaSynth container
         run: make test
         # run: docker exec -it linguaSynth uv run -m pytest
