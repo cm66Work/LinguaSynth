@@ -24,7 +24,7 @@ images_delete:
 # ──────────────────────────────────────────────────────────────────────────────
 # Default target
 test: pytest_up pytest_wait 
-	docker exec -it linguaSynth uv run -m pytest || { make pytest_down; exit 1; }
+	@docker exec -it linguaSynth uv run -m pytest || { make pytest_down; exit 1; }
 	$(MAKE) pytest_down
 
 # Bring up containers if not already running
@@ -49,4 +49,4 @@ pytest_wait:
 # Stop all running containers after the tests have finished
 pytest_down:
 	@echo "Tests finished stopping containers..."
-	docker compose down -v --remove-orphans
+	@docker compose down -v --remove-orphans
