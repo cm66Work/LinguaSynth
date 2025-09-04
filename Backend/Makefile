@@ -30,8 +30,8 @@ test: pytest_up pytest_wait
 # Bring up containers if not already running
 pytest_up:
 	@if [ -z "$$(docker ps -q -f name=linguaSynth)" ]; then \
-		echo "Containers not running. Starting with docker-compose up -d..."; \
-		docker-compose up -d; \
+		echo "Containers not running. Starting with docker compose up -d..."; \
+		docker compose up -d; \
 	else \
 		echo "Containers already running."; \
 	fi
