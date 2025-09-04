@@ -1,0 +1,17 @@
+[project]
+name = "LinguaSynth"
+version = "0.0.1"
+description = "Control interface for the LinguaSynth system."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.116.1",
+    "uvicorn>=0.35.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "httpx", # Async testing
+]
+package = true

@@ -7,3 +7,22 @@
 /Backend/Ollama/data/*
 /Backend/Postgres/data/*
 /Backend/MinIO/data/*
+
+
+# virtual environments
+/Backend/LinguaSynth/app/.venv # uv creates its own venv at container startup 
+/Backend/LinguaSynth/.venv
+
+# pytest
+/Backend/LinguaSynth/__pycache__
+/Backend/LinguaSynth/.pytest_cache
+
+# auto generated
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/dependency_links.txt
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/PKG-INFO
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/SOURCES.txt
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/top_level.txt
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/requires.txt
+Backend/LinguaSynth/app/tests/__pycache__/test_main.cpython-312-pytest-8.4.1.pyc
+Backend/LinguaSynth/app/src/__pycache__/main.cpython-312.pyc
+.vscode/settings.json
