@@ -27,11 +27,6 @@ jobs:
       - uses: actions/checkout@v3
         with:
           ref: 'Development'
-
-      # - name: Run docker compose
-      #   uses: hoverkraft-tech/compose-action@v2.0.1
-      #   with:
-      #     compose-file: "./Backend/docker-compose.yml"
       - name: Run unit tests on LinguaSynth container
         run: make test
         working-directory: ./Backend
