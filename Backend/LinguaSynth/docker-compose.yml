@@ -4,7 +4,7 @@ services:
     container_name: linguaSynth
     build: .
     ports:
-      - "8000:8000"
+      - "8000:${LINGUASYNTH_PORT}"
     environment:
       - UVICORN_RELOAD=true
     volumes:
