@@ -4,17 +4,15 @@
 LinguaSynth uses a Makefile to start up its docker containers. See the list of available commands bellow
 
 - command: `make start`
-  - Start everything up in attached terminal
-- command: `make start-d`
   - Start everything up in detached terminal
-- command: `make down`
+- command: `make stop`
   - Shutdown all docker containers 
-- command: `make down-f`
-  - Shutdown all docker containers and clean up volumes
+- command: `make stop-clean`
+  - Shutdown all docker containers and cleans everything 
 - command: `make images_delete`
   - Delete all docker images on the machine. 
-- command: `make get_images`
-  - Get a list of all docker images that are currently on the machine.
+- command: `make test`
+  - Runs pytests on LinguaSynth container, then shuts everything down and cleans all containers.
 
 # Secrets / Envs
 This project makes use of docker secrets (https://docs.docker.com/compose/how-tos/use-secrets/) to manage private internal environment variables.
