@@ -6,7 +6,16 @@ services:
     ports:
       - "8000:${LINGUASYNTH_PORT}"
     environment:
-      - UVICORN_RELOAD=true
+      UVICORN_RELOAD: true
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_username
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ADDRESS: ${MINIO_ADDRESS}
+      MINIO_API_PORT: ${MINIO_API_PORT}
+    secrets:
+      - minio_root_username
+      - minio_root_password
     volumes:
       - ./app:/app
+    networks:
+      - private
     tty: true

@@ -1,10 +1,10 @@
 # Compose file for MinIO
-
 services:
   minio:
     image: quay.io/minio/minio:RELEASE.2025-07-18T21-56-31Z-cpuv1
     container_name: minio
-    command: server --console-address ":${MINIO_CONSOLE_PORT}" /minio/mnt/data
+    command: server --address ":${MINIO_API_PORT}" --console-address ":${MINIO_CONSOLE_PORT}" /minio/mnt/data
+    # command: server --address "0.0.0.0:${MINIO_CONSOLE_PORT}" /minio/mnt/data
     restart: on-failure
     ports:
       - 9000:${MINIO_API_PORT}
@@ -12,6 +12,8 @@ services:
     environment:
       MINIO_ROOT_USER_FILE: /run/secrets/minio_root_username
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ADDRESS: ${MINIO_ADDRESS}
+      MINIO_API_PORT: ${MINIO_API_PORT}
     volumes:
       - type: bind
         source: ./data/compose
@@ -28,3 +30,16 @@ services:
       timeout: 20s
       retries: 3
       start_period: 30s
+    networks:
+      - private
+
+  create_bucket:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c " mc alias set local http://minio:${MINIO_API_PORT} \$(cat /run/secrets/minio_root_username) \$(cat /run/secrets/minio_root_password) && mc mb -p local/uploads|| true "
+    secrets:
+      - minio_root_username
+      - minio_root_password
