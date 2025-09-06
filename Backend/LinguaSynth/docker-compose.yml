@@ -16,4 +16,6 @@ services:
       - minio_root_password
     volumes:
       - ./app:/app
+    networks:
+      - private
     tty: true

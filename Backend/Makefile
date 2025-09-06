@@ -22,10 +22,13 @@ images_delete:
 # ──────────────────────────────────────────────────────────────────────────────
 # Runs all test cases. 
 # ──────────────────────────────────────────────────────────────────────────────
-# Default target
+# Default tests 
 test: pytest_up pytest_wait 
-	@docker exec linguaSynth uv run -m pytest || { make pytest_down; exit 1; }
+	@docker exec linguaSynth uv run -m --active pytest || { make pytest_down; exit 1; }
 	$(MAKE) pytest_down
+
+test-it: pytest_up pytest_wait 
+	@docker exec -it linguaSynth uv run -m --active pytest || { make pytest_down; exit 1; }
 
 # Bring up containers if not already running
 pytest_up:

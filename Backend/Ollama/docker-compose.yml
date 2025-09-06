@@ -8,3 +8,5 @@ services:
       - "11434:${OLLAMA_PORT}"
     volumes:
       - ./data:/root/.ollama
+    networks:
+      - private
