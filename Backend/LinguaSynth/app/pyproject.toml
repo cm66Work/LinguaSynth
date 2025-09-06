@@ -14,5 +14,14 @@ dependencies = [
 dev-dependencies = [
     "pytest",
     "httpx", # Async testing
+    "ruff>=0.12.12",
 ]
 package = true
+
+[tool.ruff]
+line-length = 120
+indent-width = 2
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "single"

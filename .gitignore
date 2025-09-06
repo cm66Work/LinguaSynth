@@ -8,7 +8,6 @@
 /Backend/Postgres/data/*
 /Backend/MinIO/data/*
 
-
 # virtual environments
 /Backend/LinguaSynth/app/.venv # uv creates its own venv at container startup 
 /Backend/LinguaSynth/.venv
@@ -16,6 +15,9 @@
 # pytest
 /Backend/LinguaSynth/__pycache__
 /Backend/LinguaSynth/.pytest_cache
+
+# vscode
+.vscode
 
 # auto generated
 Backend/LinguaSynth/app/src/LinguaSynth.egg-info/dependency_links.txt
