@@ -13,7 +13,6 @@ COPY ./app/pyproject.toml ./app/uv.lock ./
 RUN uv sync --frozen --active
 
 COPY ./app/src ./src
-COPY ./app/logs ./logs
 
 EXPOSE 8000
 
