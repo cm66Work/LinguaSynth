@@ -3,7 +3,7 @@ services:
   minio:
     image: quay.io/minio/minio:RELEASE.2025-07-18T21-56-31Z-cpuv1
     container_name: minio
-    command: server --console-address ":${MINIO_CONSOLE_PORT}" /minio/mnt/data
+    command: server --address ":${MINIO_API_PORT}" --console-address ":${MINIO_CONSOLE_PORT}" /minio/mnt/data
     # command: server --address "0.0.0.0:${MINIO_CONSOLE_PORT}" /minio/mnt/data
     restart: on-failure
     ports:
@@ -12,6 +12,8 @@ services:
     environment:
       MINIO_ROOT_USER_FILE: /run/secrets/minio_root_username
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ADDRESS: ${MINIO_ADDRESS}
+      MINIO_API_PORT: ${MINIO_API_PORT}
     volumes:
       - type: bind
         source: ./data/compose

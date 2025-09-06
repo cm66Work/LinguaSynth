@@ -27,4 +27,4 @@ CMD ["uv", "run", "--active", "uvicorn", "src.main:app", "--host", "0.0.0.0", "-
 
 # Health check for the image
 HEALTHCHECK --interval=30s --timeout=30s --start-period=30s --retries=5 \
-  CMD [ "curl -f http://localhost:8000/healthcheck" || exit 1]
+  CMD [ "curl -f http://localhost:8000" || exit 1]
