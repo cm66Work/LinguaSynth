@@ -1,6 +1,7 @@
 import io
 import logging
 from minio import Minio
+import datetime
 
 
 class MinIOManager:
@@ -19,7 +20,15 @@ class MinIOManager:
 
     # Logger
     self.logger = logging.getLogger(__name__)
-    logging.basicConfig(filename='minio_logs', level=logging.INFO)
+    date = f'{datetime.datetime.now().strftime("%d")}'
+    date += f'-{datetime.datetime.now().strftime("%m")}'
+    date += f'-{datetime.datetime.now().strftime("%y")}'
+    date += f'-{datetime.datetime.now().strftime("%H")}'
+    date += f'-{datetime.datetime.now().strftime("%M")}'
+    date += f'-{datetime.datetime.now().strftime("%S")}'
+    date += '.txt'
+
+    logging.basicConfig(filename=f'logs/minio_logs:{date}', level=logging.INFO)
     self.logger.info('\n New Minio Log Started.................')
 
     # Create after we validate env
