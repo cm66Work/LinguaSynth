@@ -28,7 +28,7 @@ class MinIOManager:
     date += f'-{datetime.datetime.now().strftime("%S")}'
     date += '.txt'
 
-    logging.basicConfig(filename=f'logs/minio_logs:{date}', level=logging.INFO)
+    logging.basicConfig(filename=f'logs/minio/minio_logs:{date}', level=logging.INFO)
     self.logger.info('\n New Minio Log Started.................')
 
     # Create after we validate env

@@ -17,7 +17,7 @@
 /Backend/LinguaSynth/.pytest_cache
 
 # Logs
-# /Backend/LinguaSynth/app/logs/*
+/Backend/LinguaSynth/app/logs/minio/*
 
 # auto generated
 Backend/LinguaSynth/app/src/LinguaSynth.egg-info/dependency_links.txt
