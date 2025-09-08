@@ -1,8 +1,6 @@
-import io
-import logging
-import os
 from minio import Minio
-import datetime
+import io
+from Utils.LogUtils import LogUtil  # type: ignore
 
 
 class MinIOManager:
@@ -20,19 +18,7 @@ class MinIOManager:
     self.port = port
 
     # Logger
-    self.logger = logging.getLogger(__name__)
-    date = f'{datetime.datetime.now().strftime("%d")}'
-    date += f'-{datetime.datetime.now().strftime("%m")}'
-    date += f'-{datetime.datetime.now().strftime("%y")}'
-    date += f'-{datetime.datetime.now().strftime("%H")}'
-    date += f'-{datetime.datetime.now().strftime("%M")}'
-    date += f'-{datetime.datetime.now().strftime("%S")}'
-    date += '.txt'
-    directory = f"{os.curdir}/Logs/Minio"
-    os.makedirs(directory,exist_ok=True)
-    print(os.listdir)
-    logging.basicConfig(filename=f'{directory}/minio_log:{date}', level=logging.INFO)
-    self.logger.info('\n New Minio Log Started.................')
+    self.log = LogUtil('MinIO', 'minio_log')
 
     # Create after we validate env
     self.client = Minio(
@@ -47,7 +33,7 @@ class MinIOManager:
     """
     Creates a bucket
     """
-    self.logger.info(f'Creating new bucket {name}...')
+    self.log.GenerateLogMessage(f'Creating new bucket {name}...')
     self.client.make_bucket(name)
     return self.BucketExists(name)
 
@@ -67,7 +53,7 @@ class MinIOManager:
     Deletes the bucket BUT DOSE NOT CHECK FOR OBJECTS INSIDE IT
     Returns False if bucket does not exist.
     """
-    self.logger.info(f'Purging bucket {name}...')
+    self.log.GenerateLogMessage(f'Purging bucket {name}...')
     if self.BucketExists(name):
       for fileObject in self.client.list_objects(name):
         self.DeleteFileFromBucket(name, fileObject.object_name)
@@ -81,7 +67,7 @@ class MinIOManager:
     or bucket does not exists.
 
     """
-    self.logger.info(f'Deleting bucket {name}...')
+    self.log.GenerateLogMessage(f'Deleting bucket {name}...')
     if self.BucketExists(name) and len(list(self.client.list_objects(name))) <= 0:
       self.client.remove_bucket(name)
       return True
@@ -112,7 +98,7 @@ class MinIOManager:
     Deletes the file from the bucket if the bucket and the file exist.
     Returns False if bucket or file does not exist.
     """
-    self.logger.info(f'Deleting file: {fileName} from bucket: {bucketName}...')
+    self.log.GenerateLogMessage(f'Deleting file: {fileName} from bucket: {bucketName}...')
     if not self.FileExistsInBucket(bucketName, fileName):
       return False
     self.client.remove_object(bucketName, str(fileName))
@@ -124,7 +110,7 @@ class MinIOManager:
     Uploads the given content to a bucket under the file name.
     Returns a FileUploadResponse dataClass after.
     """
-    self.logger.info(f'Uploading file: {fileName} to bucket: {bucketName}...')
+    self.log.GenerateLogMessage(f'Uploading file: {fileName} to bucket: {bucketName}...')
     if not self.BucketExists(bucketName):
       return None
     data = io.BytesIO(fileContents)
@@ -138,7 +124,7 @@ class MinIOManager:
     Returns the files content in the given bucket.
     Returns an empty string if bucket or file dose not exist.
     """
-    self.logger.info(f'Downloading file: {fileName} from bucket: {bucketName}...')
+    self.log.GenerateLogMessage(f'Downloading file: {fileName} from bucket: {bucketName}...')
     if not self.FileExistsInBucket(bucketName, fileName):
       return ''
     response = self.client.get_object(bucketName, fileName)

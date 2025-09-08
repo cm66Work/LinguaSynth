@@ -1,11 +1,10 @@
 import datetime
 import os
-import logging
 
 
 class LogUtil:
   def __init__(self, rootFolder, logBaseName):
-    self.logger = logging.getLogger(__name__)
+    # self.logger = logging.getLogger(logBaseName)
     date = f'{datetime.datetime.now().strftime("%d")}'
     date += f'-{datetime.datetime.now().strftime("%m")}'
     date += f'-{datetime.datetime.now().strftime("%y")}'
@@ -15,10 +14,15 @@ class LogUtil:
     date += '.txt'
     directory = f'{os.curdir}/Logs/{rootFolder}'
     os.makedirs(directory, exist_ok=True)
-    logging.basicConfig(filename=f'{directory}/{logBaseName}:{date}', level=logging.INFO)
+    # logging.basicConfig(filename=f'{directory}/{logBaseName}:{date}', level=logging.INFO)
+    self.logFilePath = f'{directory}/{logBaseName}:{date}.txt'
+    self.GenerateLogMessage(f'New {rootFolder} Log Started.................')
 
   def GenerateLogMessage(self, messageString):
     """
     Creates a log message in the current log file
     """
-    self.logger.info('\nmessageString')
+    # if os.path.exists(self.logFilePath):
+    with open(self.logFilePath, 'a') as f:
+      f.write(f'\n{messageString}')
+    # self.logger.info(f'\n{messageString}')
