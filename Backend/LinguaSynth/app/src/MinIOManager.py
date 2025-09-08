@@ -1,5 +1,6 @@
 import io
 import logging
+import os
 from minio import Minio
 import datetime
 
@@ -27,8 +28,10 @@ class MinIOManager:
     date += f'-{datetime.datetime.now().strftime("%M")}'
     date += f'-{datetime.datetime.now().strftime("%S")}'
     date += '.txt'
-
-    logging.basicConfig(filename=f'src/minioLogs/minio_log:{date}', level=logging.INFO)
+    directory = f"{os.curdir}/Logs/Minio"
+    os.makedirs(directory,exist_ok=True)
+    print(os.listdir)
+    logging.basicConfig(filename=f'{directory}/minio_log:{date}', level=logging.INFO)
     self.logger.info('\n New Minio Log Started.................')
 
     # Create after we validate env
