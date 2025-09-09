@@ -28,7 +28,7 @@ test: pytest_up pytest_wait
 	$(MAKE) pytest_down
 
 test-it: pytest_up pytest_wait 
-	@docker exec -it linguaSynth uv run -m --active pytest || { make pytest_down; exit 1; }
+	@docker exec -it linguaSynth uv run -m --active pytest -s || { make pytest_down; exit 1; }
 
 # Bring up containers if not already running
 pytest_up:
