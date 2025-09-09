@@ -7,13 +7,23 @@ services:
       - "8000:${LINGUASYNTH_PORT}"
     environment:
       UVICORN_RELOAD: true
+      # Minio
       MINIO_ROOT_USER_FILE: /run/secrets/minio_root_username
       MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
       MINIO_ADDRESS: ${MINIO_ADDRESS}
       MINIO_API_PORT: ${MINIO_API_PORT}
+      # Postgres
+      POSTGRES_USER_FILE: /run/secrets/postgres_username
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_ADDRESS: ${POSTGRES_ADDRESS}
+      POSTGRES_DB: ${POSTGRES_DB}
     secrets:
+      # MinIO
       - minio_root_username
       - minio_root_password
+      # Postgres
+      - postgres_username
+      - postgres_password
     volumes:
       - ./app:/app
     networks:
