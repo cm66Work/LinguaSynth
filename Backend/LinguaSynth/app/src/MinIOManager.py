@@ -126,6 +126,7 @@ class MinIOManager:
       'data': {
         'bucket_name': stat.bucket_name,
         'object_name': stat.object_name,
+        'file_path': f'{stat.bucket_name}/{stat.object_name}',
       },
     }
 
