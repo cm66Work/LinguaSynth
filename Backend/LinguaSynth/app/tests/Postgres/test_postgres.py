@@ -39,133 +39,134 @@ def Manager():
 
 # --- Table creation ---
 def test_create_table_success(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  print(Manager.TableExists(TABLE_NAME))
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
-  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['result']
+  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']
 
 
 def test_create_table_already_exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
-  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['result']
-  assert not Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['result']
+  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']
+  assert not Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']
 
 
 # --- Table deletion ---
 def test_drop_table_success(Manager):
-  if not Manager.TableExists(TABLE_NAME)['result']:
+  if not Manager.TableExists(TABLE_NAME)['success']:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
-  assert Manager.PurgeTable(TABLE_NAME)['result']
+  assert Manager.PurgeTable(TABLE_NAME)['success']
 
 
 def test_drop_table_not_exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
-  assert not Manager.PurgeTable(TABLE_NAME)['result']
+  assert not Manager.PurgeTable(TABLE_NAME)['success']
 
 
 # --- Insert entry ---
 def test_insert_entry_success(Manager):
-  if not Manager.TableExists(TABLE_NAME)['result']:
+  if not Manager.TableExists(TABLE_NAME)['success']:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
 
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
 
 
 def test_insert_entry_table_not_exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
 
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert not Manager.InsertIntoTable(TABLE_NAME, data)['result']
+  assert not Manager.InsertIntoTable(TABLE_NAME, data)['success']
 
 
 # --- Delete entry ---
 def test_delete_entry_success(Manager):
-  if not Manager.TableExists(TABLE_NAME)['result']:
+  if not Manager.TableExists(TABLE_NAME)['success']:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
-  assert Manager.DeleteEntry(TABLE_NAME, 'id', 1)['result']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.DeleteEntry(TABLE_NAME, 'id', 1)['success']
 
 
 def test_delete_entry_not_exists(Manager):
-  if not Manager.TableExists(TABLE_NAME)['result']:
+  if not Manager.TableExists(TABLE_NAME)['success']:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
-  assert not Manager.DeleteEntry(TABLE_NAME, 'id', 1)['result']
+  assert not Manager.DeleteEntry(TABLE_NAME, 'id', 1)['success']
 
 
 # --- Table get all entries ---
 def test_get_all_entries_when_entries_exist(Manager):
-  if not Manager.TableExists(TABLE_NAME)['result']:
+  if not Manager.TableExists(TABLE_NAME)['success']:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
   result = Manager.GetAllEntries(TABLE_NAME)
-  assert result['result']
+  assert result['success']
   assert len(result['data']['entries']) == 2
 
 
 def test_get_all_entries_when_no_entries(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
   Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   result = Manager.GetAllEntries(TABLE_NAME)
-  assert result['result']
+  assert result['success']
   assert len(result['data']['entries']) == 0
 
 
 def test_get_all_entries_when_no_Table_Exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
   result = Manager.GetAllEntries(TABLE_NAME)
-  assert not result['result']
+  assert not result['success']
   assert len(result['data']['entries']) == 0
 
 
 # --- Table get all entries ---
 def test_get_entries_with_id_when_entries_exist(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
   Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
   result = Manager.GetEntryByID(TABLE_NAME, 2)
-  assert result['result']
+  assert result['success']
   assert len(result['data']['entries']) > 0
   assert result['data']['entries']['originalFilePath'] == data['originalFilePath']
 
 
 def test_get_entries_with_id_when_entries_do_not_exist(Manager):
-  if Manager.TableExists(TABLE_NAME)['result']:
+  if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
   Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['result']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
   result = Manager.GetEntryByID(TABLE_NAME, 3)
-  assert not result['result']
+  assert not result['success']
   assert len(result['data']['entries']) == 0
   assert result['data']['entries'] == {}

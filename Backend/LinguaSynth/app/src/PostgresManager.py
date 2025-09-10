@@ -25,7 +25,11 @@ class PostgresManager:
 
     # Connection to the database
     self.conn = psycopg2.connect(
-      host=address, port=port, database=databaseName, user=username, password=password
+      host=address,
+      port=port,
+      database=databaseName,
+      user=username,
+      password=password,
     )
 
   # --- Table creation ---
@@ -52,10 +56,13 @@ class PostgresManager:
         )
         cur.execute(query)
         return self.__GenerateResponse(
-          True, f"Table '{table_name}' created with columns {list(columns.keys())}"
+          True,
+          f"Table '{table_name}' created with columns {list(columns.keys())}",
         )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::PostgresManager::CreateTable:: {e}')
+      return self.__GenerateResponse(
+        False, f'ERROR::PostgresManager::CreateTable:: {e}'
+      )
 
   # --- Table Management ---
   def InsertIntoTable(self, tableName: str, data: dict):
@@ -66,7 +73,7 @@ class PostgresManager:
         table_name (str): Name of the table
         data (dict): Dictionary of {column_name: value} to insert
     """
-    if not self.TableExists(tableName)['result']:
+    if not self.TableExists(tableName)['success']:
       return self.__GenerateResponse(
         False, 'ERROR::InsertIntoTable:: Table does not exist', data
       )
@@ -95,7 +102,9 @@ class PostgresManager:
         )
 
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::InsertIntoTable:: {e}', data)
+      return self.__GenerateResponse(
+        False, f'ERROR::InsertIntoTable:: {e}', data
+      )
 
   def DeleteEntry(self, tableName: str, column: str, value):
     """
@@ -124,7 +133,8 @@ class PostgresManager:
           )
         else:
           return self.__GenerateResponse(
-            False, f"No matching entry found in '{tableName}' where {column}={value}"
+            False,
+            f"No matching entry found in '{tableName}' where {column}={value}",
           )
     except psycopg2.Error as e:
       return self.__GenerateResponse(False, f'ERROR::DeleteEntry:: {e}')
@@ -141,7 +151,9 @@ class PostgresManager:
     """
     try:
       with self.conn.cursor() as cur:
-        query = sql.SQL('SELECT * FROM {table};').format(table=sql.Identifier(tableName))
+        query = sql.SQL('SELECT * FROM {table};').format(
+          table=sql.Identifier(tableName)
+        )
         cur.execute(query)
         rows = cur.fetchall()
       return self.__GenerateResponse(True, 'success', {'entries': rows})
@@ -201,7 +213,9 @@ class PostgresManager:
             {'entries': []},
           )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::GetEntryByID:: {e}', {'entries': {}})
+      return self.__GenerateResponse(
+        False, f'ERROR::GetEntryByID:: {e}', {'entries': {}}
+      )
 
   # --- Table deletion ---
   def PurgeTable(self, tableName: str, ifExists: bool = True):
@@ -214,7 +228,7 @@ class PostgresManager:
       ifExists (bool): If True, use 'IF EXISTS' so it does not raise any error
     """
     self.log.GenerateLogMessage(f'Dropping table: {tableName}...')
-    ifExists = self.TableExists(tableName)['result']
+    ifExists = self.TableExists(tableName)['success']
     try:
       with self.conn.cursor() as cur:
         query = sql.SQL('DROP TABLE {exists} {table};').format(
@@ -233,13 +247,18 @@ class PostgresManager:
     try:
       with self.conn.cursor() as cur:
         cur.execute(
-          'select * from information_schema.tables where table_name=%s', (tableName,)
+          'select * from information_schema.tables where table_name=%s',
+          (tableName,),
         )
-        return {'result': bool(cur.rowcount), 'message': 'success'}
+        return self.__GenerateResponse(
+          bool(cur.rowcount), '', generateLog=False
+        )
     except psycopg2.Error as e:
-      return {'result': False, 'message': e}
+      return self.__GenerateResponse(False, f'{e}')
 
-  def __GenerateResponse(self, result: bool, message: str, extraData: dict = {}):
+  def __GenerateResponse(
+    self, result: bool, message: str, extraData: dict = {}, generateLog=True
+  ):
     """
     Private helper function to keep return message code DRY.
     Handles generating log messages for the action.
@@ -257,9 +276,10 @@ class PostgresManager:
     if not result:
       # If sql query fails for some reason, PostgreSQL aborts the transaction. If you don’t call conn.rollback(), every subsequent query fails as well.
       self.conn.rollback()
+      if generateLog:
+        self.log.GenerateLogMessage(message)
+      return {'success': False, 'message': message, 'data': extraData}
+    if generateLog:
       self.log.GenerateLogMessage(message)
-      return {'result': False, 'message': message, 'data': extraData}
-
-    self.log.GenerateLogMessage(message)
     self.conn.commit()
-    return {'result': True, 'message': message, 'data': extraData}
+    return {'success': True, 'message': message, 'data': extraData}
