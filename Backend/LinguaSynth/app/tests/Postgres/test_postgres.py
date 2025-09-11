@@ -39,7 +39,6 @@ def Manager():
 
 # --- Table creation ---
 def test_create_table_success(Manager):
-  print(Manager.TableExists(TABLE_NAME))
   if Manager.TableExists(TABLE_NAME)['success']:
     Manager.PurgeTable(TABLE_NAME)
   assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']

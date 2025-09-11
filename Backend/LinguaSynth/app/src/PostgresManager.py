@@ -60,9 +60,7 @@ class PostgresManager:
           f"Table '{table_name}' created with columns {list(columns.keys())}",
         )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(
-        False, f'ERROR::PostgresManager::CreateTable:: {e}'
-      )
+      return self.__GenerateResponse(False, f'ERROR::PostgresManager::CreateTable:: {e}')
 
   # --- Table Management ---
   def InsertIntoTable(self, tableName: str, data: dict):
@@ -102,9 +100,7 @@ class PostgresManager:
         )
 
     except psycopg2.Error as e:
-      return self.__GenerateResponse(
-        False, f'ERROR::InsertIntoTable:: {e}', data
-      )
+      return self.__GenerateResponse(False, f'ERROR::InsertIntoTable:: {e}', data)
 
   def DeleteEntry(self, tableName: str, column: str, value):
     """
@@ -124,9 +120,6 @@ class PostgresManager:
         self.conn.commit()
 
         if cur.rowcount > 0:
-          print(
-            f"Deleted {cur.rowcount} row(s) from '{tableName}' where {column}={value}"
-          )
           return self.__GenerateResponse(
             True,
             f"Deleted {cur.rowcount} row(s) from '{tableName}' where {column}={value}",
@@ -151,9 +144,7 @@ class PostgresManager:
     """
     try:
       with self.conn.cursor() as cur:
-        query = sql.SQL('SELECT * FROM {table};').format(
-          table=sql.Identifier(tableName)
-        )
+        query = sql.SQL('SELECT * FROM {table};').format(table=sql.Identifier(tableName))
         cur.execute(query)
         rows = cur.fetchall()
       return self.__GenerateResponse(True, 'success', {'entries': rows})
@@ -213,9 +204,7 @@ class PostgresManager:
             {'entries': []},
           )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(
-        False, f'ERROR::GetEntryByID:: {e}', {'entries': {}}
-      )
+      return self.__GenerateResponse(False, f'ERROR::GetEntryByID:: {e}', {'entries': {}})
 
   # --- Table deletion ---
   def PurgeTable(self, tableName: str, ifExists: bool = True):
@@ -247,12 +236,10 @@ class PostgresManager:
     try:
       with self.conn.cursor() as cur:
         cur.execute(
-          'select * from information_schema.tables where table_name=%s',
+          'SELECT * FROM information_schema.tables WHERE table_name=%s',
           (tableName,),
         )
-        return self.__GenerateResponse(
-          bool(cur.rowcount), '', generateLog=False
-        )
+        return self.__GenerateResponse(bool(cur.rowcount), '', generateLog=False)
     except psycopg2.Error as e:
       return self.__GenerateResponse(False, f'{e}')
 

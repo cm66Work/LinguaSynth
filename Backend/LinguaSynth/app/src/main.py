@@ -97,12 +97,20 @@ async def HandleDatabaseUploading(originalFilePath: str, summarizedFilePath: str
   if not postgresManager.TableExists(DB_TABLE_NAME)['success']:
     postgresManager.CreateTable(DB_TABLE_NAME, DB_TABLE_COLUMNS)
   data = {'originalFilePath': originalFilePath, 'summarizedFilePath': summarizedFilePath}
-  result = postgresManager.InsertIntoTable(DB_TABLE_NAME, data)
-  print(result)
+  postgresManager.InsertIntoTable(DB_TABLE_NAME, data)
 
 
 # --- File summarization ---
-async def HandleSummarizedFileGeneration(file: UploadFile = File(...)):  # type: ignore
+async def HandleSummarizedFileGeneration(file: UploadFile = File(...), schema={}):  # type: ignore
+  """
+  Summarizes The content of the given file using the provided schema.
+
+  Args:
+      file (File): The file that was uploaded through our api.
+      schema (object): The schema used for file summarization.
+  Returns:
+      Returns an object containing both the original and summarized file objects.
+  """
   filename = file.filename
   filename = f'{filename.split(".")[0]}-summarized.{filename.split(".")[1]}'
   # TODO:: Make cleaner when LLM is added
