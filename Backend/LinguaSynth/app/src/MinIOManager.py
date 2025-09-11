@@ -112,11 +112,23 @@ class MinIOManager:
     """
     self.log.GenerateLogMessage(f'Uploading file: {fileName} to bucket: {bucketName}...')
     if not self.BucketExists(bucketName):
-      return None
+      return {
+        'success': False,
+        'message': f'ERROR::UploadFileContents:: Bucket:{bucketName} dose not exists',
+        'data': {},
+      }
     data = io.BytesIO(fileContents)
     self.client.put_object(bucketName, fileName, data, len(fileContents))
     stat = self.client.stat_object(bucketName, fileName)
-    return stat
+    return {
+      'success': True,
+      'message': '',
+      'data': {
+        'bucket_name': stat.bucket_name,
+        'object_name': stat.object_name,
+        'file_path': f'{stat.bucket_name}/{stat.object_name}',
+      },
+    }
 
   # ------------- File Downloading
   def DownloadFileContentFromBucket(self, bucketName, fileName):
@@ -124,7 +136,9 @@ class MinIOManager:
     Returns the files content in the given bucket.
     Returns an empty string if bucket or file dose not exist.
     """
-    self.log.GenerateLogMessage(f'Downloading file: {fileName} from bucket: {bucketName}...')
+    self.log.GenerateLogMessage(
+      f'Downloading file: {fileName} from bucket: {bucketName}...'
+    )
     if not self.FileExistsInBucket(bucketName, fileName):
       return ''
     response = self.client.get_object(bucketName, fileName)
