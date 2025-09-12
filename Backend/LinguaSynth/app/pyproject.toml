@@ -5,19 +5,20 @@ description = "Control interface for the LinguaSynth system."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.116.1",
-    "minio>=7.2.16",
-    "ollama>=0.5.3",
-    "postgres>=4.0",
-    "python-multipart>=0.0.20",
-    "uvicorn>=0.35.0",
+    "fastapi==0.116.1",
+    "minio==7.2.16",
+    "ollama==0.5.3",
+    "postgres==4.0",
+    "python-multipart==0.0.20",
+    "uvicorn==0.35.0",
 ]
 
 [tool.uv]
 dev-dependencies = [
     "pytest",
+    "pytest-asyncio",
     "httpx", # Async testing
-    "ruff>=0.12.12",
+    "ruff==0.12.12",
 ]
 package = true
 

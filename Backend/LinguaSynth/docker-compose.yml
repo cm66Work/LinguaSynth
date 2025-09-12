@@ -17,6 +17,10 @@ services:
       POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
       POSTGRES_ADDRESS: ${POSTGRES_ADDRESS}
       POSTGRES_DB: ${POSTGRES_DB}
+      # Ollama
+      OLLAMA_ADDRESS: ${OLLAMA_ADDRESS}
+      OLLAMA_PORT: ${OLLAMA_PORT}
+      
     secrets:
       # MinIO
       - minio_root_username
