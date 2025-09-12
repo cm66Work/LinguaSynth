@@ -9,8 +9,7 @@
 /Backend/MinIO/data/*
 
 # virtual environments
-/Backend/LinguaSynth/app/.venv # uv creates its own venv at container startup 
-/Backend/LinguaSynth/.venv
+/Backend/LinguaSynth/app/.venv
 
 # pytest
 /Backend/LinguaSynth/__pycache__
