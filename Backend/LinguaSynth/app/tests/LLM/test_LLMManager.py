@@ -1,6 +1,6 @@
 import os
-import pytest
-from LLMManager import LLMManager
+import pytest 
+from src.LLMManager import LLMManager
 
 
 # --- Fixtures ---
