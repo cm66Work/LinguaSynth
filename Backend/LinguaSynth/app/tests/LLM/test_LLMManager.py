@@ -40,19 +40,19 @@ async def test_pull_none_existing_mode(Manager, nonexistent_model):
 # --- Generating answers --@pytest.mark.asyncio
 @pytest.mark.asyncio
 async def test_generate_with_existing_model_and_prompt(Manager, existing_model):
-  result = await Manager.Generate(existing_model, 'why is the sky blue?')
+  result = Manager.Generate(existing_model, 'why is the sky blue?')
   assert result.Success
 
 
 @pytest.mark.asyncio
 async def test_generate_with_none_existing_model_and_prompt(Manager, nonexistent_model):
-  result = await Manager.Generate(nonexistent_model, 'why is the sky blue?')
+  result = Manager.Generate(nonexistent_model, 'why is the sky blue?')
   assert not result.Success
 
 
 @pytest.mark.asyncio
 async def test_generate_with_existing_model_and_no_prompt(Manager, existing_model):
-  result = await Manager.Generate(existing_model, '')
+  result = Manager.Generate(existing_model, '')
   assert not result.Success
 
 
@@ -60,5 +60,5 @@ async def test_generate_with_existing_model_and_no_prompt(Manager, existing_mode
 async def test_generate_with_none_existing_model_and_no_prompt(
   Manager, nonexistent_model
 ):
-  result = await Manager.Generate(nonexistent_model, '')
+  result = Manager.Generate(nonexistent_model, '')
   assert not result.Success

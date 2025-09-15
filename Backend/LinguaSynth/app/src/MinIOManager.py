@@ -1,6 +1,7 @@
 from minio import Minio
 import io
 from Utils.LogUtils import LogUtil  # type: ignore
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 
 class MinIOManager:
@@ -19,6 +20,7 @@ class MinIOManager:
 
     # Logger
     self.log = LogUtil('MinIO', 'minio_log')
+    self.serverResponseUtil = ServerResponse('MinIO', 'minio_log')
 
     # Create after we validate env
     self.client = Minio(
@@ -105,30 +107,32 @@ class MinIOManager:
     return True
 
   # ------------- File Uploading
-  def UploadFileContents(self, bucketName, fileName, fileContents):
+  def UploadFileContents(
+    self, bucketName: str, fileName: str, fileContents: str
+  ) -> ServerResponseObject:
     """
     Uploads the given content to a bucket under the file name.
     Returns a FileUploadResponse dataClass after.
     """
     self.log.GenerateLogMessage(f'Uploading file: {fileName} to bucket: {bucketName}...')
     if not self.BucketExists(bucketName):
-      return {
-        'success': False,
-        'message': f'ERROR::UploadFileContents:: Bucket:{bucketName} dose not exists',
-        'data': {},
-      }
-    data = io.BytesIO(fileContents)
-    self.client.put_object(bucketName, fileName, data, len(fileContents))
+      return self.serverResponseUtil.GenerateServerResponse(
+        False, message=f'ERROR::UploadFileContents:: Bucket:{bucketName} dose not exists'
+      )
+    data_bytes = fileContents.encode('utf-8')  # must be bytes, not str
+    data_stream = io.BytesIO(data_bytes)
+    # data = io.BytesIO(fileContents)
+    self.client.put_object(bucketName, fileName, data_stream, len(fileContents))
     stat = self.client.stat_object(bucketName, fileName)
-    return {
-      'success': True,
-      'message': '',
-      'data': {
+    return self.serverResponseUtil.GenerateServerResponse(
+      True,
+      message='',
+      extraData={
         'bucket_name': stat.bucket_name,
         'object_name': stat.object_name,
         'file_path': f'{stat.bucket_name}/{stat.object_name}',
       },
-    }
+    )
 
   # ------------- File Downloading
   def DownloadFileContentFromBucket(self, bucketName, fileName):
@@ -139,8 +143,11 @@ class MinIOManager:
     self.log.GenerateLogMessage(
       f'Downloading file: {fileName} from bucket: {bucketName}...'
     )
-    if not self.FileExistsInBucket(bucketName, fileName):
+    if not self.BucketExists(bucketName) or not self.FileExistsInBucket(
+      bucketName, fileName
+    ):
       return ''
+
     response = self.client.get_object(bucketName, fileName)
     content = response.read()
     response.close()

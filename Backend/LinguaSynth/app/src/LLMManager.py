@@ -8,7 +8,7 @@ class LLMManager:
     self.serverResponseUtil = ServerResponse('Ollama', 'ollama_log')
 
   # --- Pulling Images ---
-  async def PullImage(self, imageName: str) -> ServerResponseObject:
+  async def PullModel(self, imageName: str) -> ServerResponseObject:
     """
     Downloads the model if it exists on ollama's server.
 
@@ -29,7 +29,7 @@ class LLMManager:
       )
 
   # --- Generating answers ---
-  def Generate(self, model: str, prompt=''):
+  async def Generate(self, model: str, prompt=''):
     """
     Generation request to the current running LLM.
 
@@ -49,6 +49,9 @@ class LLMManager:
         False, 'ERROR::LLMManager.Generate:: LLM model name is empty.'
       )
 
+    if not self.__ModelExists(model):
+      await self.PullModel(imageName=model)
+
     try:
       result = self.client.generate(model, prompt)
       return self.serverResponseUtil.GenerateServerResponse(
@@ -61,3 +64,9 @@ class LLMManager:
       return self.serverResponseUtil.GenerateServerResponse(
         False, f'ERROR::LLMManager.Generate:: {e}'
       )
+
+  def __ModelExists(self, modelName: str):
+    models = self.client.list()
+    if modelName in models:
+      return True
+    return False
