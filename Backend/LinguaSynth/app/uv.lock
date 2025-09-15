@@ -255,12 +255,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "fastapi", specifier = ">=0.116.1" },
-    { name = "minio", specifier = ">=7.2.16" },
-    { name = "ollama", specifier = ">=0.5.3" },
-    { name = "postgres", specifier = ">=4.0" },
-    { name = "python-multipart", specifier = ">=0.0.20" },
-    { name = "uvicorn", specifier = ">=0.35.0" },
+    { name = "fastapi", specifier = "==0.116.1" },
+    { name = "minio", specifier = "==7.2.16" },
+    { name = "ollama", specifier = "==0.5.3" },
+    { name = "postgres", specifier = "==4.0" },
+    { name = "python-multipart", specifier = "==0.0.20" },
+    { name = "uvicorn", specifier = "==0.35.0" },
 ]
 
 [package.metadata.requires-dev]
@@ -268,7 +268,7 @@ dev = [
     { name = "httpx" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
-    { name = "ruff", specifier = ">=0.12.12" },
+    { name = "ruff", specifier = "==0.12.12" },
 ]
 
 [[package]]
