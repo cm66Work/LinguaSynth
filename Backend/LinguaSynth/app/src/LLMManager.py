@@ -29,11 +29,12 @@ class LLMManager:
       )
 
   # --- Generating answers ---
-  async def Generate(self, model: str, prompt=''):
+  def Generate(self, model: str, prompt=''):
     """
     Generation request to the current running LLM.
 
     Args:
+        model (str): The model to use for generation.
         prompt (str): The prompt which is given to the LLM.
 
     Returns:
@@ -52,7 +53,7 @@ class LLMManager:
       result = self.client.generate(model, prompt)
       return self.serverResponseUtil.GenerateServerResponse(
         True,
-        'response generated.',
+        'response generated',
         extraData={'response': result['response']},
         generateLog=False,
       )

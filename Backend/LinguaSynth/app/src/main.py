@@ -13,6 +13,9 @@ DB_TABLE_COLUMNS = {
   'originalFilePath': 'TEXT NOT NULL',
   'summarizedFilePath': 'TEXT NOT NULL',
 }
+LLM_LIGHT_GENERATION_MODEL = 'gemma3:1b-it-q8_0'
+LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
+
 
 # --- Minio ---
 address = os.getenv('MINIO_ADDRESS', 'minio')
@@ -52,14 +55,11 @@ postgresManager = PostgresManager(username, password, address, port, databaseNam
 
 
 # --- Ollama ---
-def Manager():
-  address = os.getenv('OLLAMA_ADDRESS', 'ollama')
-  port = os.getenv('OLLAMA_PORT', '11434')
-
-  return LLMManager(hostAddress=f'{address}:{port}', model='')
+address = os.getenv('OLLAMA_ADDRESS', 'ollama')
+llm = LLMManager(hostAddress=f'{address}:{port}', model=LLM_LIGHT_GENERATION_MODEL)
 
 
-# --- Code ---
+# --- APIs ---
 @app.get('/')
 async def root():
   return {'message:': 'Hello World!'}
@@ -142,6 +142,9 @@ async def HandleSummarizedFileGeneration(file: UploadFile = File(...), schema={}
   return {'originalFile': originalResult, 'summarizedFile': summaryResult}
 
 
-async def SummarizeFile(content):
-  # TODO:: Use LLM to summarize temp file using schema
-  return content
+async def SummarizeFile(content: str, schema: str):
+  result = llm.Generate(
+    model=LLM_LIGHT_GENERATION_MODEL,
+    prompt=f'{schema} use the above schema to summarize the content in the following document: {content}',
+  )
+  return result
