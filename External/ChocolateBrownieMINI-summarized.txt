@@ -1,0 +1,17 @@
+```json
+{
+  "name": "desserts",
+  "num_documents": 1,
+  "fields": {
+    "dessert_name": "brownie",
+    "category": "chocolate dessert",
+    "variation": "blond brownie/blondie",
+    "texture": "fudgy or cakey",
+    "toppings": ["nuts", "chocolate chips", "whipped cream", "powdered sugar"],
+    "serving_styles": ["by hand", "with utensils", "with milk", "with ice cream", "à la mode"],
+    "origin_country": "United States",
+    "first_appearance_year": 1890,
+    "default_sorting_field": "first_appearance_year"
+  }
+}
+``

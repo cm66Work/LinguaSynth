@@ -1,56 +1,21 @@
-from fastapi import FastAPI, UploadFile, File  # pyright: ignore[reportAssignmentType]
-import os
-from MinIOManager import MinIOManager
-from PostgresManager import PostgresManager
+from typing import cast
+from MinIO_Object import MinIO_Object
+from PostgresObject import Postgres_Object
+from fastapi import FastAPI, UploadFile, File
+from LLM_Object import LLM_Object
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
-# --- Constants ---
-UPLOAD_ORIGINAL_BUCKET_NAME = 'original'
-UPLOAD_SUMMARIZED_BUCKET_NAME = 'upload'
-DB_TABLE_NAME = 'file_reference_table'
-DB_TABLE_COLUMNS = {
-  'id': 'SERIAL PRIMARY KEY',
-  'originalFilePath': 'TEXT NOT NULL',
-  'summarizedFilePath': 'TEXT NOT NULL',
-}
 
-# --- Minio ---
-address = os.getenv('MINIO_ADDRESS', 'minio')
-port = os.getenv('MINIO_API_PORT', '9000')
-
-# using the file so we need to read the contents
-username = os.getenv('MINIO_ROOT_USER_FILE', 'minioadmin')
-password = os.getenv('MINIO_ROOT_PASSWORD_FILE', 'minioadmin')
-# only update username and password if we had read a file path and not the default minio credentials
-# just in case we pass them instead of the actual files
-if not username == 'minioadmin' or password == 'minioadmin':
-  with open(username) as f:
-    username = f.read()
-  with open(password) as f:
-    password = f.read()
-minioManager = MinIOManager(username, password, address, port)
-
-# --- API ---
+# --- Objects ---
+llmObject = LLM_Object()
 app = FastAPI()
+minioObject = MinIO_Object()
+postgresObject = Postgres_Object()
 
-# --- Postgres ---
-address = os.getenv('POSTGRES_ADDRESS', 'db')
-port = os.getenv('POSTGRES_PORT', '5432')
-databaseName = os.getenv('POSTGRES_DB', 'test_db')
-
-# using the file so we need to read the contents
-username = os.getenv('POSTGRES_USER_FILE', 'test_user')
-password = os.getenv('POSTGRES_PASSWORD_FILE', 'test_password')
-# only update username and password if we had read a file path and not the default minio credentials
-# just in case we pass them instead of the actual files
-if not username == 'test_user' or password == 'test_password':
-  with open(username) as f:
-    username = f.read()
-  with open(password) as f:
-    password = f.read()
-postgresManager = PostgresManager(username, password, address, port, databaseName)
+serverResponse = ServerResponse('API', 'api_log')
 
 
-# --- Code ---
+# --- General ---
 @app.get('/')
 async def root():
   return {'message:': 'Hello World!'}
@@ -61,78 +26,58 @@ async def HealthCheck():
   return {'message': 'Healthy'}
 
 
+# --- File summarization ---
 @app.post('/uploadfile/')
-async def UploadFile(file: UploadFile = File(...)):  # pyright: ignore[reportGeneralTypeIssues]
-  uploadResult = await HandleSummarizedFileGeneration(file)
-  if not uploadResult['summarizedFile']['success']:
-    return {
-      'success': False,
-      'filePath': '',
-      'message': 'ERROR::main:: Failed to upload file to Minio.',
-    }
-  summarizedFilePath = uploadResult['summarizedFile']['data']['file_path']
+async def UploadContentFile(file: UploadFile) -> ServerResponseObject:
+  # Summarize content, then upload the files
+  schema = await minioObject.GetSchemaContent()
+  if len(schema) <= 0:
+    return serverResponse.GenerateServerResponse(
+      False, 'Error::APIs-UploadFile:: Schema content is empty.'
+    )
 
-  originalFilePath = uploadResult['originalFile']['data']['file_path']
-  await HandleDatabaseUploading(originalFilePath, summarizedFilePath)
+  originalContent = str(await file.read())
+  summarizedContent = str(
+    await llmObject.HandleContentSummarization(originalContent, schema)
+  )
+  uploadResults = await minioObject.UploadNewFileToBucket(
+    str(file.filename), originalContent, summarizedContent
+  )
+
+  if not uploadResults['summarizedFile'].Success:
+    return serverResponse.GenerateServerResponse(
+      False, 'Error::APIs-UploadFile:: Failed to upload file to Minio.'
+    )
+  summarizedFilePath = uploadResults['summarizedFile'].Data['file_path']
+
+  originalFilePath = uploadResults['originalFile'].Data['file_path']
+  await postgresObject.UploadFilePathsToDataBase(originalFilePath, summarizedFilePath)
 
   # TODO:: Pass the summarized file into Typesense
-  return {
-    'success': True,
-    'filePath': f'{summarizedFilePath} : {originalFilePath}',
-    'message': 'File uploaded successfully.',
-  }
-
-
-# --- Handlers ---
-# --- File linking / referencing ---
-async def HandleDatabaseUploading(originalFilePath: str, summarizedFilePath: str):
-  """
-  Creates a entry containing both the original and summarized file paths,
-  so they can be referenced later.
-
-  Args:
-      originalFilePath (str): path to the original file storage location.
-      summarizedFilePath (str): path to the summarized file storage location.
-  """
-  if not postgresManager.TableExists(DB_TABLE_NAME)['success']:
-    postgresManager.CreateTable(DB_TABLE_NAME, DB_TABLE_COLUMNS)
-  data = {'originalFilePath': originalFilePath, 'summarizedFilePath': summarizedFilePath}
-  postgresManager.InsertIntoTable(DB_TABLE_NAME, data)
-
-
-# --- File summarization ---
-async def HandleSummarizedFileGeneration(file: UploadFile = File(...), schema={}):  # type: ignore
-  """
-  Summarizes The content of the given file using the provided schema.
-
-  Args:
-      file (File): The file that was uploaded through our api.
-      schema (object): The schema used for file summarization.
-  Returns:
-      Returns an object containing both the original and summarized file objects.
-  """
-  filename = file.filename
-  filename = f'{filename.split(".")[0]}-summarized.{filename.split(".")[1]}'
-  # TODO:: Make cleaner when LLM is added
-  content = await SummarizeFile(await file.read())
-  # TODO:: this is a placeholder because we are not taking into consideration
-  #        that the files will be stored on a different server from the server
-  #        running LinguaSynth
-  if not minioManager.BucketExists(UPLOAD_ORIGINAL_BUCKET_NAME):
-    minioManager.CreateBucket(UPLOAD_ORIGINAL_BUCKET_NAME)
-  originalResult = minioManager.UploadFileContents(
-    UPLOAD_ORIGINAL_BUCKET_NAME, file.filename, await file.read()
+  return serverResponse.GenerateServerResponse(
+    True, 'Files uploaded and database updated.'
   )
 
-  if not minioManager.BucketExists(UPLOAD_SUMMARIZED_BUCKET_NAME):
-    minioManager.CreateBucket(UPLOAD_SUMMARIZED_BUCKET_NAME)
-  summaryResult = minioManager.UploadFileContents(
-    UPLOAD_SUMMARIZED_BUCKET_NAME, filename, content
+
+# --- Schema generation ---
+@app.post('/generate-schema/')
+async def GenerateSchema(file: UploadFile) -> ServerResponseObject:  # pyright: ignore[reportGeneralTypeIssues]
+  content = str(await file.read())
+  result = cast(
+    ServerResponseObject, await llmObject.HandleSchemaGeneration(content=content)
+  )
+  if not result.Success:
+    return serverResponse.GenerateServerResponse(
+      False,
+      'ERROR::main.upload-file::Schema generation failed!',
+      extraData={'result': result},
+    )
+  return serverResponse.GenerateServerResponse(
+    True, 'Schema generated.', extraData={'result': result}
   )
 
-  return {'originalFile': originalResult, 'summarizedFile': summaryResult}
 
-
-async def SummarizeFile(content):
-  # TODO:: Use LLM to summarize temp file using schema
-  return content
+@app.post('/upload-schema/')
+async def UploadCustomSchema(file: UploadFile) -> ServerResponseObject:
+  content = str(await file.read())
+  return minioObject.UploadSchema(content)
