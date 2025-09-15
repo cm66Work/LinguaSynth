@@ -28,3 +28,4 @@ Backend/LinguaSynth/app/tests/__pycache__/test_main.cpython-312-pytest-8.4.1.pyc
 Backend/LinguaSynth/app/src/__pycache__/main.cpython-312.pyc
 
 *.pyc 
+Backend/LinguaSynth/app/tests/__pycache__/__init__.cpython-312.pyc

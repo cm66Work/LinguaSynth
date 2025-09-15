@@ -1,3 +1,4 @@
+from LLMManager import LLMManager
 from fastapi import FastAPI, UploadFile, File  # pyright: ignore[reportAssignmentType]
 import os
 from MinIOManager import MinIOManager
@@ -48,6 +49,14 @@ if not username == 'test_user' or password == 'test_password':
   with open(password) as f:
     password = f.read()
 postgresManager = PostgresManager(username, password, address, port, databaseName)
+
+
+# --- Ollama ---
+def Manager():
+  address = os.getenv('OLLAMA_ADDRESS', 'ollama')
+  port = os.getenv('OLLAMA_PORT', '11434')
+
+  return LLMManager(hostAddress=f'{address}:{port}', model='')
 
 
 # --- Code ---

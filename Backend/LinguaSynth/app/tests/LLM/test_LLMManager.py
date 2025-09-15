@@ -1,9 +1,21 @@
 import os
-import pytest 
+import pytest
 from src.LLMManager import LLMManager
 
 
 # --- Fixtures ---
+@pytest.fixture(scope='session')
+def existing_model():
+  """Name of a known model available on Ollama Hub (e.g., mistral)."""
+  return 'gemma3:1b-it-q8_0'
+
+
+@pytest.fixture(scope='session')
+def nonexistent_model():
+  """Name of a model that should not exist."""
+  return 'nonexistent-llm-xyz'
+
+
 @pytest.fixture(scope='module')
 def Manager():
   address = os.getenv('OLLAMA_ADDRESS', 'ollama')
@@ -13,56 +25,40 @@ def Manager():
 
 
 # --- Pulling Images ---
-def test_pull_valid_model():
-  # result = Manager.PullImage('gemma3:1b')
-  # print(result)
-  # assert result.Success
-  pass
+@pytest.mark.asyncio
+async def test_pull_existing_mode(Manager, existing_model):
+  result = await Manager.PullImage(existing_model)
+  assert result.Success
 
 
-def test_pull_invalid_model():
-  pass
+@pytest.mark.asyncio
+async def test_pull_none_existing_mode(Manager, nonexistent_model):
+  result = await Manager.PullImage(nonexistent_model)
+  assert not result.Success
 
 
-def test_pull_valid_model_new():
-  pass
+# --- Generating answers --@pytest.mark.asyncio
+@pytest.mark.asyncio
+async def test_generate_with_existing_model_and_prompt(Manager, existing_model):
+  result = await Manager.Generate(existing_model, 'why is the sky blue?')
+  assert result.Success
 
 
-def test_pull_valid_model_duplicate_model():
-  pass
+@pytest.mark.asyncio
+async def test_generate_with_none_existing_model_and_prompt(Manager, nonexistent_model):
+  result = await Manager.Generate(nonexistent_model, 'why is the sky blue?')
+  assert not result.Success
 
 
-# -- Switching models ---
-def test_switch_model_does_exist():
-  pass
+@pytest.mark.asyncio
+async def test_generate_with_existing_model_and_no_prompt(Manager, existing_model):
+  result = await Manager.Generate(existing_model, '')
+  assert not result.Success
 
 
-def test_switch_model_does_not_exist():
-  pass
-
-
-# --- Generating answers ---
-def test_generate_response_with_prompt():
-  pass
-
-
-def test_generate_response_with_empty_prompt():
-  pass
-
-
-# --- Deleting models ---
-def test_delete_model_does_exist():
-  pass
-
-
-def test_delete_model_does_not_exist():
-  pass
-
-
-# --- Get Models ---
-def test_get_models_exists():
-  pass
-
-
-def test_get_models_empty():
-  pass
+@pytest.mark.asyncio
+async def test_generate_with_none_existing_model_and_no_prompt(
+  Manager, nonexistent_model
+):
+  result = await Manager.Generate(nonexistent_model, '')
+  assert not result.Success
