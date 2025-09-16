@@ -1,4 +1,4 @@
-from LLMManager import LLMManager
+from Managers.LLMManager import LLMManager
 import os
 
 # --- Constants ---

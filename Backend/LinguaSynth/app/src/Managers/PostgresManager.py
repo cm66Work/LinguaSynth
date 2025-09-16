@@ -1,9 +1,31 @@
 import psycopg2
-from psycopg2 import sql
-from Utils.LogUtils import LogUtil  # type: ignore
+from psycopg2 import OperationalError, sql
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 ORIGINAL_FILE_PATH_COLUMN_NAME = 'ORIGINAL_FILE_PATH'
 SUMMARIZED_FILE_PATH_COLUMN_NAME = 'SUMMARIZED_FILE_PATH'
+
+
+# if not success:
+#   # If sql query fails for some reason, PostgreSQL aborts the transaction. If you don’t call conn.rollback(), every subsequent query fails as well.
+#   self.connection.rollback()
+class PostgresServerResponse(ServerResponse):
+  def __init__(self, conn, rootFolder: str, logBaseName: str):
+    self.conn = conn
+    super().__init__(rootFolder, logBaseName)
+
+  def GenerateServerResponse(
+    self,
+    success: bool,
+    message: str,
+    extraData: dict = {},
+    generateLog=True,
+  ):
+    if not success:
+      self.conn.rollback()  # undo what we tried to do before we send the return.
+    else:
+      self.conn.commit()
+    return super().GenerateServerResponse(success, message, extraData, generateLog)
 
 
 class PostgresManager:
@@ -20,9 +42,6 @@ class PostgresManager:
     self.address = address
     self.port = port
 
-    # Logger
-    self.log = LogUtil('Postgres', 'postgres_log')
-
     # Connection to the database
     self.conn = psycopg2.connect(
       host=address,
@@ -32,8 +51,13 @@ class PostgresManager:
       password=password,
     )
 
+    # Logger
+    self.serverResponseUtil = PostgresServerResponse(
+      self.conn, 'Postgres', 'postgres_log'
+    )
+
   # --- Table creation ---
-  def CreateTable(self, table_name: str, columns: dict):
+  def CreateTable(self, table_name: str, columns: dict) -> ServerResponseObject:
     """
     Create a table with given name and columns.
 
@@ -55,15 +79,17 @@ class PostgresManager:
           table=sql.Identifier(table_name), fields=sql.SQL(', ').join(col_defs)
         )
         cur.execute(query)
-        return self.__GenerateResponse(
-          True,
-          f"Table '{table_name}' created with columns {list(columns.keys())}",
+        return self.serverResponseUtil.GenerateServerResponse(
+          success=True,
+          message=f"Table '{table_name}' created with columns {list(columns.keys())}",
         )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::PostgresManager::CreateTable:: {e}')
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::PostgresManager::CreateTable:: {e}'
+      )
 
   # --- Table Management ---
-  def InsertIntoTable(self, tableName: str, data: dict):
+  def InsertIntoTable(self, tableName: str, data: dict) -> ServerResponseObject:
     """
     Insert a row into the specified table.
 
@@ -71,9 +97,11 @@ class PostgresManager:
         table_name (str): Name of the table
         data (dict): Dictionary of {column_name: value} to insert
     """
-    if not self.TableExists(tableName)['success']:
-      return self.__GenerateResponse(
-        False, 'ERROR::InsertIntoTable:: Table does not exist', data
+    if not self.TableExists(tableName).Success:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message='ERROR::InsertIntoTable:: Table does not exist',
+        extraData=data,
       )
 
     try:
@@ -93,16 +121,18 @@ class PostgresManager:
 
         cur.execute(query, tuple(data.values()))
         inserted_row = cur.fetchone()
-        return self.__GenerateResponse(
-          True,
-          f"Inserted row into '{tableName}': {inserted_row}",
-          {'insertedRow': inserted_row},
+        return self.serverResponseUtil.GenerateServerResponse(
+          success=True,
+          message=f"Inserted row into '{tableName}': {inserted_row}",
+          extraData={'insertedRow': inserted_row},
         )
 
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::InsertIntoTable:: {e}', data)
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::InsertIntoTable:: {e}', extraData=data
+      )
 
-  def DeleteEntry(self, tableName: str, column: str, value):
+  def DeleteEntry(self, tableName: str, column: str, value) -> ServerResponseObject:
     """
     Delete an entry from a table based on a WHERE condition.
 
@@ -120,19 +150,21 @@ class PostgresManager:
         self.conn.commit()
 
         if cur.rowcount > 0:
-          return self.__GenerateResponse(
-            True,
-            f"Deleted {cur.rowcount} row(s) from '{tableName}' where {column}={value}",
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=True,
+            message=f"Deleted {cur.rowcount} row(s) from '{tableName}' where {column}={value}",
           )
         else:
-          return self.__GenerateResponse(
-            False,
-            f"No matching entry found in '{tableName}' where {column}={value}",
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=False,
+            message=f"No matching entry found in '{tableName}' where {column}={value}",
           )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::DeleteEntry:: {e}')
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::DeleteEntry:: {e}'
+      )
 
-  def GetAllEntries(self, tableName):
+  def GetAllEntries(self, tableName) -> ServerResponseObject:
     """
     Fetch all rows from a given table.
 
@@ -147,14 +179,16 @@ class PostgresManager:
         query = sql.SQL('SELECT * FROM {table};').format(table=sql.Identifier(tableName))
         cur.execute(query)
         rows = cur.fetchall()
-      return self.__GenerateResponse(True, 'success', {'entries': rows})
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=True, message='success', extraData={'entries': rows}, generateLog=False
+      )
     except Exception as e:
       print(f"Unexpected error while fetching entries from '{tableName}': {e}")
-      return self.__GenerateResponse(
-        False, f'ERROR::GetAllEntries:: {e}', {'entries': []}
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::GetAllEntries:: {e}', extraData={'entries': []}
       )
 
-  def GetEntryByID(self, tableName: str, rowID: int):
+  def GetEntryByID(self, tableName: str, rowID: int) -> ServerResponseObject:
     """
     Fetch entry from a table by its 'id'.
 
@@ -176,38 +210,40 @@ class PostgresManager:
         row = cur.fetchone()
 
         if row is None:
-          return self.__GenerateResponse(
-            False,
-            f"No entry found in '{tableName}' with id={rowID}",
-            {'entries': {}},
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=False,
+            message=f"No entry found in '{tableName}' with id={rowID}",
+            extraData={'entries': {}},
           )
         # Ensure description is available
         if cur.description is None:
           print()
-          return self.__GenerateResponse(
-            False,
-            f'No columns found in result set for table: {tableName}',
-            {'entries': {}},
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=False,
+            message=f'No columns found in result set for table: {tableName}',
+            extraData={'entries': {}},
           )
         colNames = [desc[0] for desc in cur.description]
         result = dict(zip(colNames, row))
         if cur.rowcount > 0:
-          return self.__GenerateResponse(
-            True,
-            f"Found {cur.rowcount} row(s) from '{tableName}' where {column}={rowID}",
-            {'entries': result},
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=True,
+            message=f"Found {cur.rowcount} row(s) from '{tableName}' where {column}={rowID}",
+            extraData={'entries': result},
           )
         else:
-          return self.__GenerateResponse(
-            False,
-            f"No matching entry found in '{tableName}' where {column}={rowID}",
-            {'entries': []},
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=False,
+            message=f"No matching entry found in '{tableName}' where {column}={rowID}",
+            extraData={'entries': []},
           )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'ERROR::GetEntryByID:: {e}', {'entries': {}})
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::GetEntryByID:: {e}', extraData={'entries': {}}
+      )
 
   # --- Table deletion ---
-  def PurgeTable(self, tableName: str, ifExists: bool = True):
+  def PurgeTable(self, tableName: str, ifExists: bool = True) -> ServerResponseObject:
     """
     Drop a table with he given name.
     Returns true if table was dropped successfully
@@ -216,8 +252,8 @@ class PostgresManager:
       tableName (str): Name of the table to create
       ifExists (bool): If True, use 'IF EXISTS' so it does not raise any error
     """
-    self.log.GenerateLogMessage(f'Dropping table: {tableName}...')
-    ifExists = self.TableExists(tableName)['success']
+    self.serverResponseUtil.GenerateLogMessage(f'Dropping table: {tableName}...')
+    ifExists = self.TableExists(tableName).Success
     try:
       with self.conn.cursor() as cur:
         query = sql.SQL('DROP TABLE {exists} {table};').format(
@@ -225,48 +261,28 @@ class PostgresManager:
           table=sql.Identifier(tableName),
         )
         cur.execute(query)
-        return self.__GenerateResponse(
-          True, f"Table '{tableName}' dropped (if existed: {ifExists})."
+        return self.serverResponseUtil.GenerateServerResponse(
+          success=True, message=f"Table '{tableName}' dropped (if existed: {ifExists})."
         )
+    except OperationalError as e:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::PostgresManager.PurgeTable:: {e}'
+      )
     except Exception as e:
-      return self.__GenerateResponse(False, f'ERROR::PurgeTable:: {e}')
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'ERROR::PostgresManager.PurgeTable:: {e}'
+      )
 
   # --- Table Utils ---
   def TableExists(self, tableName: str):
     try:
       with self.conn.cursor() as cur:
         cur.execute(
-          'SELECT * FROM information_schema.tables WHERE table_name=%s',
+          'SELECT 1 FROM information_schema.tables WHERE table_name=%s',
           (tableName,),
         )
-        return self.__GenerateResponse(bool(cur.rowcount), '', generateLog=False)
+        return self.serverResponseUtil.GenerateServerResponse(
+          success=bool(cur.rowcount), message='', generateLog=False
+        )
     except psycopg2.Error as e:
-      return self.__GenerateResponse(False, f'{e}')
-
-  def __GenerateResponse(
-    self, result: bool, message: str, extraData: dict = {}, generateLog=True
-  ):
-    """
-    Private helper function to keep return message code DRY.
-    Handles generating log messages for the action.
-    Result == True: commit the change
-    Result == False: rollback the change
-
-    Args:
-      result (bool): if the action was successful.
-      message (str): the message to log and return
-      extraData (dict): any extra information that should be returned
-    Return:
-      Object with both a result (bool) and message (str).
-      Also returns extraData on the end if any passed
-    """
-    if not result:
-      # If sql query fails for some reason, PostgreSQL aborts the transaction. If you don’t call conn.rollback(), every subsequent query fails as well.
-      self.conn.rollback()
-      if generateLog:
-        self.log.GenerateLogMessage(message)
-      return {'success': False, 'message': message, 'data': extraData}
-    if generateLog:
-      self.log.GenerateLogMessage(message)
-    self.conn.commit()
-    return {'success': True, 'message': message, 'data': extraData}
+      return self.serverResponseUtil.GenerateServerResponse(success=False, message=f'{e}')

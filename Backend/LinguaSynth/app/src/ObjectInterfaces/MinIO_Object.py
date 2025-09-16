@@ -1,6 +1,6 @@
 from typing import Any
 import os
-from MinIOManager import MinIOManager
+from Managers.MinIOManager import MinIOManager
 from Utils.ServerResponse import ServerResponseObject
 
 UPLOAD_ORIGINAL_BUCKET_NAME = 'original'
