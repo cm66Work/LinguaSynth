@@ -1,7 +1,7 @@
 import os
 import pytest
 from minio.error import S3Error
-from MinIOManager import MinIOManager
+from src.Managers.MinIOManager import MinIOManager
 
 # --- Configuration ---
 BUCKET_NAME = 'test-bucket'

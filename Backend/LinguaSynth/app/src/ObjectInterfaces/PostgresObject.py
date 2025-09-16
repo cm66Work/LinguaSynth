@@ -1,5 +1,5 @@
 import os
-from PostgresManager import PostgresManager
+from Managers.PostgresManager import PostgresManager
 
 
 # --- Constants ---
