@@ -10,6 +10,7 @@ dependencies = [
     "ollama==0.5.3",
     "postgres==4.0",
     "python-multipart==0.0.20",
+    "typesense>=1.1.1",
     "uvicorn==0.35.0",
 ]
 
