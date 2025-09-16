@@ -1,5 +1,5 @@
-from minio import Minio
 import io
+from minio import Minio
 from Utils.LogUtils import LogUtil  # type: ignore
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
@@ -119,10 +119,19 @@ class MinIOManager:
       return self.serverResponseUtil.GenerateServerResponse(
         False, message=f'ERROR::UploadFileContents:: Bucket:{bucketName} dose not exists'
       )
-    data_bytes = fileContents.encode('utf-8')  # must be bytes, not str
+    if isinstance(fileContents, str):
+      data_bytes = fileContents.encode('utf-8')  # convert to bytes
+    else:
+      data_bytes = fileContents  # already bytes
+
     data_stream = io.BytesIO(data_bytes)
-    # data = io.BytesIO(fileContents)
-    self.client.put_object(bucketName, fileName, data_stream, len(fileContents))
+    self.client.put_object(
+      bucketName,
+      fileName,
+      data=data_stream,
+      length=len(data_bytes),
+      content_type='text/plain',
+    )
     stat = self.client.stat_object(bucketName, fileName)
     return self.serverResponseUtil.GenerateServerResponse(
       True,

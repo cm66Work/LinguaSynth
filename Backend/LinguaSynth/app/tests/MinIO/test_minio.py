@@ -45,7 +45,7 @@ def test_upload_object_when_not_exists(Manager):
   if not Manager.BucketExists(BUCKET_NAME):
     Manager.CreateBucket(BUCKET_NAME)
   response = Manager.UploadFileContents(BUCKET_NAME, TEST_FILE_NAME, FILE_CONTENT)
-  assert response['success']
+  assert response.Success
 
 
 def test_upload_object_when_exists(Manager):
@@ -54,7 +54,7 @@ def test_upload_object_when_exists(Manager):
   Manager.UploadFileContents(BUCKET_NAME, TEST_FILE_NAME, FILE_CONTENT)
   # Uploading again should overwrite without error
   response = Manager.UploadFileContents(BUCKET_NAME, TEST_FILE_NAME, FILE_CONTENT)
-  assert response['success']
+  assert response.Success
 
 
 # --- Download Tests ---
@@ -63,7 +63,6 @@ def test_download_object_when_exists(Manager):
     Manager.CreateBucket(BUCKET_NAME)
   Manager.UploadFileContents(BUCKET_NAME, TEST_FILE_NAME, FILE_CONTENT)
   response = Manager.DownloadFileContentFromBucket(BUCKET_NAME, TEST_FILE_NAME)
-  print(f'response: {response}')
   assert response == FILE_CONTENT
 
 
