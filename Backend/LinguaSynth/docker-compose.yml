@@ -20,6 +20,9 @@ services:
       # Ollama
       OLLAMA_ADDRESS: ${OLLAMA_ADDRESS}
       OLLAMA_PORT: ${OLLAMA_PORT}
+      # Typesense
+      TYPESENSE_ADDRESS: ${TYPESENSE_HOST}
+      TYPESENSE_PORT: ${TYPESENSE_PORT}
       
     secrets:
       # MinIO
