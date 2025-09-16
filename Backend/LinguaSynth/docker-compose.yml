@@ -21,8 +21,11 @@ services:
       OLLAMA_ADDRESS: ${OLLAMA_ADDRESS}
       OLLAMA_PORT: ${OLLAMA_PORT}
       # Typesense
-      TYPESENSE_ADDRESS: ${TYPESENSE_HOST}
+      TYPESENSE_HOST: ${TYPESENSE_HOST}
       TYPESENSE_PORT: ${TYPESENSE_PORT}
+      TYPESENSE_PROTOCOL: ${TYPESENSE_PROTOCOL}
+      TYPESENSE_API_KEY: $(cat /run/secrets/typesense_api_key)
+      TYPESENSE_SEARCH_API_KEY: $(cat /run/secrets/typesense_search_api_key)
       
     secrets:
       # MinIO
@@ -31,6 +34,9 @@ services:
       # Postgres
       - postgres_username
       - postgres_password
+      # Typesense
+      - typesense_api_key
+      - typesense_search_api_key
     volumes:
       - ./app:/app
     networks:

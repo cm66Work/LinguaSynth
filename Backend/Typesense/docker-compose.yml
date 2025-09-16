@@ -12,6 +12,8 @@ services:
       # Typesense does not support secret files, so we have to read the file value.
       TYPESENSE_API_KEY: $(cat /run/secrets/typesense_api_key)
       TYPESENSE_SEARCH_API_KEY: $(cat /run/secrets/typesense_search_api_key)
+      TYPESENSE_PROTOCOL: ${TYPESENSE_PROTOCOL}
+      TYPESENSE_HOST: ${TYPESENSE_HOST}
       TYPESENSE_DATA_DIR: /data
     command: '--enable-cors'
     depends_on:
