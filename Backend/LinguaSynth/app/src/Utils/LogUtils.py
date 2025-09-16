@@ -9,8 +9,8 @@ class LogUtil:
     date += f'-{datetime.datetime.now().strftime("%m")}'
     date += f'-{datetime.datetime.now().strftime("%y")}'
     date += f'-{datetime.datetime.now().strftime("%H")}'
-    date += f'-{datetime.datetime.now().strftime("%M")}'
-    date += f'-{datetime.datetime.now().strftime("%S")}'
+    # date += f'-{datetime.datetime.now().strftime("%M")}'
+    # date += f'-{datetime.datetime.now().strftime("%S")}'
     date += '.txt'
     directory = f'{os.curdir}/Logs/{rootFolder}'
     os.makedirs(directory, exist_ok=True)
