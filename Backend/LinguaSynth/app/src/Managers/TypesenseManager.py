@@ -1,5 +1,5 @@
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
-import typesense  # type: ignore
+from typesense.client import Client
 
 
 class TypesenseManager:
@@ -11,34 +11,41 @@ class TypesenseManager:
     apiKey: str,
     searchApiKey: str,
   ):
-    self.client = typesense.Client(
+    self.client = Client(
       {
-        'api_key': apiKey,
-        'nodes': [{'host': host, 'port': port, 'protocol': protocol}],
+        'api_key': apiKey,  # ignore to fix unhappy type checker...Pylance
+        'nodes': [{'host': host, 'port': port, 'protocol': protocol}],  # type: ignore
         'connection_timeout_seconds': 5,
       }
     )
+
     self.serverResponseUtil = ServerResponse('Typesense', 'typesense_log')
 
-  def RecreateCollection(self, schema: dict, schemaName: str) -> ServerResponseObject:
+  def RecreateCollection(self, schema, schemaName: str) -> ServerResponseObject:
     """
     Deletes and recreates a new collection with the provides schema.
     Args:
-        schema (dict): The schema used in the collection.
+        schema: The schema used in the collection.
     """
-    exceptionRaised = False
     try:
       self.client.collections[schemaName].delete()
     except Exception as e:
       self.serverResponseUtil.GenerateLogMessage(
-        f'Exception::TypesenseManager.CreateCollection:: {e}'
+        f'Exception::TypesenseManager.CreateCollection:: {e}. \nSkipping deletion of document.'
       )
-      exceptionRaised = True
-      pass
-    result = self.client.collections.create(schema)
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=exceptionRaised, message='', extraData={'result': result}
-    )
+    try:
+      result = self.client.collections.create(schema)
+      # make sure it's JSON serializable
+      safe_result = dict(result) if not isinstance(result, dict) else result
+
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=True, message='', extraData={'result': safe_result}
+      )
+    except Exception as e:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message=f'Exception::TypesenseManager.CreateCollection:: {e}',
+      )
 
   def DeleteCollection(self, name: str):
     """
@@ -65,7 +72,8 @@ class TypesenseManager:
           Format = [{id, schema files...},]
     """
     result = self.client.collections[collection].documents.import_(
-      documents, {'action': 'upsert'}
+      documents,  # type: ignore
+      {'action': 'upsert'},
     )
 
     # Import method does not fail if a document fails to upload.
@@ -108,13 +116,13 @@ class TypesenseManager:
       'q': question,
       'query_by': queryBy,
     }
-    results = self.client.collections[collection].documents.search(search_params)
+    results = self.client.collections[collection].documents.search(search_params)  # type: ignore
     hits = results.get('hits', [])
     n = len(hits)
 
     responseMessage = ''
     confidence = 0
-    documentNames = []
+    documentNames = [h['document']['name'] for h in hits]
     if n < minHits:
       responseMessage = 'Not sure of the answer.'
       confidence = -1
@@ -122,8 +130,7 @@ class TypesenseManager:
       responseMessage = 'Question is not clear enough.'
       confidence = 0
     else:
-      documentNames = [h['document']['name'] for h in hits]
-      responseMessage = f'Found {n} documents.', documentNames
+      responseMessage = f'Found {n} documents.'
       confidence = 1
 
     return self.serverResponseUtil.GenerateServerResponse(
