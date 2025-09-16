@@ -1,6 +1,6 @@
 import os
 import pytest
-from PostgresManager import PostgresManager
+from src.Managers.PostgresManager import PostgresManager
 
 
 # --- Configuration ---
@@ -39,133 +39,133 @@ def Manager():
 
 # --- Table creation ---
 def test_create_table_success(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
-  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']
+  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS).Success
 
 
 def test_create_table_already_exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
-  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']
-  assert not Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)['success']
+  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS).Success
+  assert not Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS).Success
 
 
 # --- Table deletion ---
 def test_drop_table_success(Manager):
-  if not Manager.TableExists(TABLE_NAME)['success']:
+  if not Manager.TableExists(TABLE_NAME).Success:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
-  assert Manager.PurgeTable(TABLE_NAME)['success']
+  assert Manager.PurgeTable(TABLE_NAME).Success
 
 
 def test_drop_table_not_exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
-    Manager.PurgeTable(TABLE_NAME)
-  assert not Manager.PurgeTable(TABLE_NAME)['success']
+  if Manager.TableExists(TABLE_NAME).Success:
+    assert Manager.PurgeTable(TABLE_NAME).Success
+  assert not Manager.PurgeTable(TABLE_NAME).Success
 
 
 # --- Insert entry ---
 def test_insert_entry_success(Manager):
-  if not Manager.TableExists(TABLE_NAME)['success']:
+  if not Manager.TableExists(TABLE_NAME).Success:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
 
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
 
 
 def test_insert_entry_table_not_exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
 
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert not Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert not Manager.InsertIntoTable(TABLE_NAME, data).Success
 
 
 # --- Delete entry ---
 def test_delete_entry_success(Manager):
-  if not Manager.TableExists(TABLE_NAME)['success']:
+  if not Manager.TableExists(TABLE_NAME).Success:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
-  assert Manager.DeleteEntry(TABLE_NAME, 'id', 1)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
+  assert Manager.DeleteEntry(TABLE_NAME, 'id', 1).Success
 
 
 def test_delete_entry_not_exists(Manager):
-  if not Manager.TableExists(TABLE_NAME)['success']:
+  if not Manager.TableExists(TABLE_NAME).Success:
     Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
-  assert not Manager.DeleteEntry(TABLE_NAME, 'id', 1)['success']
+  assert not Manager.DeleteEntry(TABLE_NAME, 'id', 1).Success
 
 
 # --- Table get all entries ---
 def test_get_all_entries_when_entries_exist(Manager):
-  if not Manager.TableExists(TABLE_NAME)['success']:
-    Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
+  Manager.PurgeTable(TABLE_NAME, True)
+  Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  Manager.InsertIntoTable(TABLE_NAME, data).Success
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
   result = Manager.GetAllEntries(TABLE_NAME)
-  assert result['success']
-  assert len(result['data']['entries']) == 2
+  assert result.Success
+  assert len(result.Data['entries']) == 2
 
 
 def test_get_all_entries_when_no_entries(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
   Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   result = Manager.GetAllEntries(TABLE_NAME)
-  assert result['success']
-  assert len(result['data']['entries']) == 0
+  assert result.Success
+  assert len(result.Data['entries']) == 0
 
 
 def test_get_all_entries_when_no_Table_Exists(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
   result = Manager.GetAllEntries(TABLE_NAME)
-  assert not result['success']
-  assert len(result['data']['entries']) == 0
+  assert not result.Success
+  assert len(result.Data['entries']) == 0
 
 
 # --- Table get all entries ---
 def test_get_entries_with_id_when_entries_exist(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
   Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
   result = Manager.GetEntryByID(TABLE_NAME, 2)
-  assert result['success']
-  assert len(result['data']['entries']) > 0
-  assert result['data']['entries']['originalFilePath'] == data['originalFilePath']
+  assert result.Success
+  assert len(result.Data['entries']) > 0
+  assert result.Data['entries']['originalFilePath'] == data['originalFilePath']
 
 
 def test_get_entries_with_id_when_entries_do_not_exist(Manager):
-  if Manager.TableExists(TABLE_NAME)['success']:
+  if Manager.TableExists(TABLE_NAME).Success:
     Manager.PurgeTable(TABLE_NAME)
-  Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS)
+  assert Manager.CreateTable(TABLE_NAME, TABLE_COLUMNS).Success
   data = {
     'originalFilePath': 'originalFile.txt',
     'summarizedFilePath': 'summarizedFile.txt',
   }
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
-  assert Manager.InsertIntoTable(TABLE_NAME, data)['success']
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
+  assert Manager.InsertIntoTable(TABLE_NAME, data).Success
   result = Manager.GetEntryByID(TABLE_NAME, 3)
-  assert not result['success']
-  assert len(result['data']['entries']) == 0
-  assert result['data']['entries'] == {}
+  assert not result.Success
+  assert len(result.Data['entries']) == 0
+  assert result.Data['entries'] == {}

@@ -1,8 +1,8 @@
 from typing import cast
-from MinIO_Object import MinIO_Object
-from PostgresObject import Postgres_Object
+from ObjectInterfaces.MinIO_Object import MinIO_Object
+from ObjectInterfaces.PostgresObject import Postgres_Object
 from fastapi import FastAPI, UploadFile, File
-from LLM_Object import LLM_Object
+from ObjectInterfaces.LLM_Object import LLM_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 
