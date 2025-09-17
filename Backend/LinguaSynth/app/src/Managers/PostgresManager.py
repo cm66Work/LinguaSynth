@@ -25,7 +25,9 @@ class PostgresServerResponse(ServerResponse):
       self.conn.rollback()  # undo what we tried to do before we send the return.
     else:
       self.conn.commit()
-    return super().GenerateServerResponse(success, message, extraData, generateLog)
+    return super().GenerateServerResponse(
+      success, message, extraData=extraData, generateLog=generateLog
+    )
 
 
 class PostgresManager:
