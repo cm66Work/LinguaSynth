@@ -1,5 +1,14 @@
 import datetime
+from enum import Enum
 import os
+
+
+class ErrorTypes(Enum):
+  Ok = ''
+  Info = '_info'
+  Warning = 'WARNING'
+  Error = 'ERROR'
+  Exception = 'EXCEPTION'
 
 
 class LogUtil:
@@ -18,11 +27,13 @@ class LogUtil:
     self.logFilePath = f'{directory}/{logBaseName}:{date}.txt'
     self.GenerateLogMessage(f'New {rootFolder} Log Started.................')
 
-  def GenerateLogMessage(self, messageString):
+  def GenerateLogMessage(
+    self, messageString, className: str = '', errorType: ErrorTypes = ErrorTypes.Ok
+  ):
     """
     Creates a log message in the current log file
     """
     # if os.path.exists(self.logFilePath):
     with open(self.logFilePath, 'a') as f:
-      f.write(f'\n{messageString}')
+      f.write(f'\n{errorType}::{className}::{messageString}')
     # self.logger.info(f'\n{messageString}')

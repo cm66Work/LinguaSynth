@@ -1,4 +1,4 @@
-from Utils.LogUtils import LogUtil
+from Utils.LogUtils import ErrorTypes, LogUtil
 from dataclasses import dataclass
 
 
@@ -17,7 +17,13 @@ class ServerResponse(LogUtil):
     super().__init__(rootFolder, logBaseName)
 
   def GenerateServerResponse(
-    self, success: bool, message: str, extraData: dict = {}, generateLog=True
+    self,
+    success: bool,
+    message: str,
+    className: str = '',
+    errorType: ErrorTypes = ErrorTypes.Ok,
+    extraData: dict = {},
+    generateLog=True,
   ):
     """
     Private helper function to keep return message code DRY.
@@ -32,5 +38,5 @@ class ServerResponse(LogUtil):
       Also returns extraData on the end if any passed.
     """
     if generateLog:
-      self.GenerateLogMessage(message)
+      self.GenerateLogMessage(message, className=className, errorType=errorType)
     return ServerResponseObject(Success=success, Message=message, Data=extraData)
