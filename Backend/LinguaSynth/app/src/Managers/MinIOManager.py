@@ -155,7 +155,7 @@ class MinIOManager:
     if not self.BucketExists(bucketName) or not self.FileExistsInBucket(
       bucketName, fileName
     ):
-      return ''
+      return bytes()
 
     response = self.client.get_object(bucketName, fileName)
     content = response.read()
