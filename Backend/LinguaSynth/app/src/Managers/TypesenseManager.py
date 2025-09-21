@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from typesense.client import Client
@@ -25,20 +26,21 @@ class TypesenseManager:
     self.schema: CollectionCreateSchema = {'name': 'default', 'fields': []}
     self.serverResponseUtil = ServerResponse('Typesense', 'typesense_log')
 
-  def CanOverrideSchema(self, schema: CollectionCreateSchema, force=False) -> bool:
+  def CanOverrideSchema(self, schema: dict[str, Any], force=False) -> bool:
     """
     Replaces the existing schema with a new one.
     Args:
         schema (dict): New schema.
         force (bool): If the, will not stop override of schema if one already exists.
     """
-    jsonSchema = json.loads(str(schema))
-    if len(jsonSchema['fields']) > 0 and not force:
+    if isinstance(schema, str):
+      schema = json.loads(schema)
+    if len(schema['fields']) > 0 and not force:
       self.serverResponseUtil.GenerateLogMessage(
         'ERROR::TypesenseManager.SetSchema:: Can not override existing schema with out force'
       )
       return False
-    elif len(jsonSchema['fields']) > 0 and force:
+    elif len(schema['fields']) > 0 and force:
       self.serverResponseUtil.GenerateLogMessage(
         'WARNING::TypesenseManager.SetSchema:: Forcing override of existing schema.'
       )
@@ -49,21 +51,20 @@ class TypesenseManager:
 
   def CollectionExists(self, collectionName: str) -> bool:
     for collection in self.GetLoadedSchemas():
-      jsonCollection = json.loads(str(collection).replace("'", '"'))
-      if jsonCollection['name'] == collectionName:
+      # jsonCollection: dict[str, Any] = json.loads(str(collection).replace("'", '"'))
+      if collection['name'] == collectionName:
         return True
     return False
 
   def RecreateCollection(
-    self, newSchema: CollectionCreateSchema, force=False
+    self, newSchema: dict[str, Any], force=False
   ) -> ServerResponseObject:
     """
     Deletes and recreates a new collection with the provides schema.
     Args:
         schema: The schema used in the collection.
     """
-    jsonSchema = json.loads(str(newSchema))
-    if len(jsonSchema['fields']) <= 0:
+    if not bool(newSchema.get('fields')):
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
         message='New schema is empty',
@@ -78,12 +79,13 @@ class TypesenseManager:
         className=self.__class__.__name__,
       )
 
-    if force and self.CollectionExists(jsonSchema['name']):
-      self.client.collections[jsonSchema['name']].delete()
+    if force and self.CollectionExists(newSchema['name']):
+      self.client.collections[newSchema['name']].delete()
 
     try:
       # create the schema
-      result = self.client.collections.create(newSchema)
+      # ignore the pylance typing error it is fine.
+      result = self.client.collections.create(newSchema)  # type: ignore
       # make sure it's JSON serializable
       safe_result = dict(result) if not isinstance(result, dict) else result
 
