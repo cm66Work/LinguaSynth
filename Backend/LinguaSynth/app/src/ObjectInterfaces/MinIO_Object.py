@@ -60,15 +60,6 @@ class MinIO_Object:
   ) -> ServerResponseObject:
     return self.client.UploadFileContents(bucketName, fileName, content)
 
-  async def GetSchemaContent(self) -> str:
-    """
-    Returns the schema that is currently loaded as a json object
-    Return type is string so convert before modifying it.
-    """
-    schema = str(self.client.DownloadFileContentFromBucket('schema', SCHEMA_FILE_NAME))
-    # return only the fields, because everything else needs to remain the same.
-    return json.loads(schema)['fields']
-
   def UploadSchema(self, content: str):
     if not self.client.BucketExists(UPLOAD_SCHEMA_BUCKET_NAME):
       self.client.CreateBucket(UPLOAD_SCHEMA_BUCKET_NAME)

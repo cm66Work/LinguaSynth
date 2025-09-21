@@ -1,8 +1,8 @@
-from Managers.LLMManager import LLMManager
+from Managers.LLMManager import LLMManager, LLMServerResponseObject
 import os
 
 # --- Constants ---
-LLM_LIGHT_GENERATION_MODEL = 'gemma3:1b-it-q8_0'
+LLM_LIGHT_GENERATION_MODEL = 'gemma3:270m-it-bf16'  #'gemma3:1b-it-fp16'
 LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
 LLM_EXAMPLE_SCHEMA = {
   'name': 'companies',
@@ -42,7 +42,9 @@ class LLM_Object:
     )
     return await result
 
-  async def HandleContentSummarization(self, content: str, schema: str) -> str:
+  async def HandleContentSummarization(
+    self, content: str, schemaFields: str
+  ) -> LLMServerResponseObject:
     """
     Generates a summarized version of the content using the provided schema.
 
@@ -54,7 +56,15 @@ class LLM_Object:
 
     """
     result = await self.client.Generate(
+      # Light model is two small to get good enough results at the moment.
       model=LLM_HEAVY_GENERATION_MODEL,
-      prompt=f'{schema}. Use the provided schema to summarize the following content, only including what is necessary and relevant to each json schema category. document to summarize: {content}',
+      prompt=f"""
+        Schema fields:{schemaFields}
+        Document:{content}
+        Summarize and match all content in the given document to all "name" key values based on their types as single word tags. Include as much single word detail as possible only. if the type is a list, then include a list of matching keywords. Tags.
+        Output: JSON only.""",
     )
-    return result.Data['response']
+    return result
+
+
+# f'{schemaFields}. \nUse the provided schema fields to summarize the following content, only including what is necessary and relevant to each field. Including only all "name" keys from the fields in your response is critical. \nDocument to summarize: {content}. \n respond with json only',

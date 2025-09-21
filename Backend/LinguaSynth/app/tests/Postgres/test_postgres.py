@@ -167,5 +167,4 @@ def test_get_entries_with_id_when_entries_do_not_exist(Manager):
   assert Manager.InsertIntoTable(TABLE_NAME, data).Success
   result = Manager.GetEntryByID(TABLE_NAME, 3)
   assert not result.Success
-  assert len(result.Data['entries']) == 0
   assert result.Data['entries'] == {}

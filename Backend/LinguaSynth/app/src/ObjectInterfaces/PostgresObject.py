@@ -38,10 +38,10 @@ class Postgres_Object:
         originalFilePath (str): path to the original file storage location.
         summarizedFilePath (str): path to the summarized file storage location.
     """
-    if not self.client.TableExists(DB_TABLE_NAME)['success']:
+    if not self.client.TableExists(DB_TABLE_NAME).Success:
       self.client.CreateTable(DB_TABLE_NAME, DB_TABLE_COLUMNS)
     data = {
       'originalFilePath': originalFilePath,
       'summarizedFilePath': summarizedFilePath,
     }
-    self.client.InsertIntoTable(DB_TABLE_NAME, data)
+    return self.client.InsertIntoTable(DB_TABLE_NAME, data)

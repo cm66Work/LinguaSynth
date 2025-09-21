@@ -5,10 +5,10 @@ import os
 
 class ErrorTypes(Enum):
   Ok = ''
-  Info = '_info'
-  Warning = 'WARNING'
-  Error = 'ERROR'
-  Exception = 'EXCEPTION'
+  Info = '_info\n'
+  Warning = '!!WARNING!!  '
+  Error = 'ERROR::'
+  Exception = 'EXCEPTION -->'
 
 
 class LogUtil:
@@ -34,6 +34,8 @@ class LogUtil:
     Creates a log message in the current log file
     """
     # if os.path.exists(self.logFilePath):
+    if len(messageString) <= 0:
+      return
     with open(self.logFilePath, 'a') as f:
-      f.write(f'\n{errorType}::{className}::{messageString}')
+      f.write(f'\n{errorType.value}{className}::{messageString}')
     # self.logger.info(f'\n{messageString}')
