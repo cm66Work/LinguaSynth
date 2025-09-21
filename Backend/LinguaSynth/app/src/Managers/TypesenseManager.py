@@ -52,7 +52,7 @@ class TypesenseManager:
   def CollectionExists(self, collectionName: str) -> bool:
     for collection in self.GetLoadedSchemas():
       # jsonCollection: dict[str, Any] = json.loads(str(collection).replace("'", '"'))
-      if collection['name'] == collectionName:
+      if collection['name'] == collectionName:  # type: ignore
         return True
     return False
 
@@ -197,7 +197,8 @@ class TypesenseManager:
     )
 
   # region Tools
-  def GetLoadedSchemas(self):
-    return self.client.collections.retrieve()
+  def GetLoadedSchemas(self) -> dict[str, Any]:
+    # ignoring the pylance error, the type is correct.
+    return self.client.collections.retrieve()  # type: ignore
 
   # endregion
