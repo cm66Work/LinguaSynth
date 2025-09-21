@@ -114,6 +114,7 @@ class MinIOManager:
     Uploads the given content to a bucket under the file name.
     Returns a FileUploadResponse dataClass after.
     """
+    # fileName = f'{fileName.split(".")[0]}.txt'
     self.log.GenerateLogMessage(f'Uploading file: {fileName} to bucket: {bucketName}...')
     if not self.BucketExists(bucketName):
       return self.serverResponseUtil.GenerateServerResponse(

@@ -1,11 +1,39 @@
+from dataclasses import dataclass
 from ollama import Client, ResponseError
+from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
+
+
+@dataclass
+class LLMServerResponseObject(ServerResponseObject):
+  Response: str
+
+
+class LLMServerResponse(ServerResponse):
+  def __init__(self, rootFolder: str, logBaseName: str):
+    super().__init__(rootFolder, logBaseName)
+
+  def GenerateServerResponse(
+    self,
+    success: bool,
+    message: str = '',
+    className: str = '',
+    errorType: ErrorTypes = ErrorTypes.Ok,
+    extraData: dict = {},
+    response: str = '',
+    generateLog=True,
+  ):
+    if generateLog or len(message) > 0:
+      self.GenerateLogMessage(message, className=className, errorType=errorType)
+    return LLMServerResponseObject(
+      Success=success, Message=message, Data=extraData, Response=response
+    )
 
 
 class LLMManager:
   def __init__(self, hostAddress: str, model='gemma3:1b'):
     self.client = Client(host=hostAddress)
-    self.serverResponseUtil = ServerResponse('Ollama', 'ollama_log')
+    self.serverResponseUtil = LLMServerResponse('Ollama', 'ollama_log')
 
   # --- Pulling Images ---
   async def PullModel(self, imageName: str) -> ServerResponseObject:
@@ -21,7 +49,7 @@ class LLMManager:
     try:
       response = self.client.pull(imageName)
       return self.serverResponseUtil.GenerateServerResponse(
-        True, 'Pulled new ollama image.', {'response': response}
+        success=True, message='Pulled new ollama image.', extraData={'response': response}
       )
     except ResponseError as e:
       return self.serverResponseUtil.GenerateServerResponse(
@@ -29,7 +57,7 @@ class LLMManager:
       )
 
   # --- Generating answers ---
-  async def Generate(self, model: str, prompt=''):
+  async def Generate(self, model: str, prompt='') -> LLMServerResponseObject:
     """
     Generation request to the current running LLM.
 
@@ -57,7 +85,8 @@ class LLMManager:
       return self.serverResponseUtil.GenerateServerResponse(
         True,
         'response generated',
-        extraData={'response': result['response']},
+        # extraData={'response': result['response']},
+        response=result['response'],
         generateLog=False,
       )
     except ResponseError as e:

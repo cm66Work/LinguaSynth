@@ -1,5 +1,8 @@
+import json
+from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from typesense.client import Client
+from typesense.types.collection import CollectionCreateSchema
 
 
 class TypesenseManager:
@@ -18,33 +21,81 @@ class TypesenseManager:
         'connection_timeout_seconds': 5,
       }
     )
-
+    # typesense maps this to a
+    self.schema: CollectionCreateSchema = {'name': 'default', 'fields': []}
     self.serverResponseUtil = ServerResponse('Typesense', 'typesense_log')
 
-  def RecreateCollection(self, schema, schemaName: str) -> ServerResponseObject:
+  def CanOverrideSchema(self, schema: CollectionCreateSchema, force=False) -> bool:
+    """
+    Replaces the existing schema with a new one.
+    Args:
+        schema (dict): New schema.
+        force (bool): If the, will not stop override of schema if one already exists.
+    """
+    jsonSchema = json.loads(str(schema))
+    if len(jsonSchema['fields']) > 0 and not force:
+      self.serverResponseUtil.GenerateLogMessage(
+        'ERROR::TypesenseManager.SetSchema:: Can not override existing schema with out force'
+      )
+      return False
+    elif len(jsonSchema['fields']) > 0 and force:
+      self.serverResponseUtil.GenerateLogMessage(
+        'WARNING::TypesenseManager.SetSchema:: Forcing override of existing schema.'
+      )
+    self.serverResponseUtil.GenerateLogMessage(
+      f'Setting new schema. List:{self.client.collections.retrieve()}'
+    )
+    return True
+
+  def CollectionExists(self, collectionName: str) -> bool:
+    for collection in self.GetLoadedSchemas():
+      jsonCollection = json.loads(str(collection).replace("'", '"'))
+      if jsonCollection['name'] == collectionName:
+        return True
+    return False
+
+  def RecreateCollection(
+    self, newSchema: CollectionCreateSchema, force=False
+  ) -> ServerResponseObject:
     """
     Deletes and recreates a new collection with the provides schema.
     Args:
         schema: The schema used in the collection.
     """
-    try:
-      self.client.collections[schemaName].delete()
-    except Exception as e:
-      self.serverResponseUtil.GenerateLogMessage(
-        f'Exception::TypesenseManager.CreateCollection:: {e}. \nSkipping deletion of document.'
+    jsonSchema = json.loads(str(newSchema))
+    if len(jsonSchema['fields']) <= 0:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message='New schema is empty',
+        errorType=ErrorTypes.Warning,
+        className=self.__class__.__name__,
       )
+    if not self.CanOverrideSchema(schema=newSchema, force=force):
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message='Cannot override existing schema',
+        errorType=ErrorTypes.Warning,
+        className=self.__class__.__name__,
+      )
+
+    if force and self.CollectionExists(jsonSchema['name']):
+      self.client.collections[jsonSchema['name']].delete()
+
     try:
-      result = self.client.collections.create(schema)
+      # create the schema
+      result = self.client.collections.create(newSchema)
       # make sure it's JSON serializable
       safe_result = dict(result) if not isinstance(result, dict) else result
 
       return self.serverResponseUtil.GenerateServerResponse(
-        success=True, message='', extraData={'result': safe_result}
+        success=True, extraData={'result': safe_result}
       )
     except Exception as e:
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
-        message=f'Exception::TypesenseManager.CreateCollection:: {e}',
+        message=f'{e}',
+        errorType=ErrorTypes.Exception,
+        className=self.__class__.__name__,
       )
 
   def DeleteCollection(self, name: str):
@@ -63,7 +114,7 @@ class TypesenseManager:
         success=False, message=f'EXCEPTION::Typesense.DeleteCollection:: {e}'
       )
 
-  def IndexDocuments(self, collection: str, documents: list[dict]):
+  def IndexDocuments(self, collection: str, docs: str):
     """
     Imports document content into Typesense
     Args:
@@ -72,23 +123,23 @@ class TypesenseManager:
           Format = [{id, schema files...},]
     """
     result = self.client.collections[collection].documents.import_(
-      documents,  # type: ignore
-      {'action': 'upsert'},
+      documents=docs, import_parameters={'action': 'upsert'}
     )
 
     # Import method does not fail if a document fails to upload.
     # So we need to sort our the failed documents from the success documents.
     # Reasons for the failed upload are provided in the return object for each document.
-    errorList = []
-    for r in result:
-      if not r['success']:
-        errorList.append(r)
-    if len(errorList) > 0:
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'ERROR::TypesenseManager.IndexDocuments:: {len(errorList)} number of documents failed to import, see logs for more details',
-        extraData={'errors': errorList},
-      )
+    # TODO:: fix response error handling, result could have a return of a list or string
+    # errorList = []
+    # for r in result:
+    #   if not r['success']:
+    #     errorList.append(r)
+    # if len(errorList) > 0:
+    #   return self.serverResponseUtil.GenerateServerResponse(
+    #     success=False,
+    #     message=f'ERROR::TypesenseManager.IndexDocuments:: {len(errorList)} number of documents failed to import, see logs for more details',
+    #     extraData={'errors': errorList},
+    #   )
     return self.serverResponseUtil.GenerateServerResponse(
       success=True,
       message=f'{len(result)} documents uploaded successfully.',
@@ -142,3 +193,9 @@ class TypesenseManager:
         'documents': documentNames,
       },
     )
+
+  # region Tools
+  def GetLoadedSchemas(self):
+    return self.client.collections.retrieve()
+
+  # endregion

@@ -34,7 +34,7 @@ def documents():
 
 
 @pytest.fixture(scope='module')
-def Manager(schema):
+def Manager():
   return TypesenseManager(
     host=os.getenv('TYPESENSE_HOST', 'typesense'),
     port=os.getenv('TYPESENSE_PORT', '8108'),
@@ -44,14 +44,39 @@ def Manager(schema):
   )
 
 
-# --- Tests ---
+# region Schema management
+def test_set_new_schema_when_none_exist(Manager, schema):
+  assert Manager.SetSchema(schema)
+
+
+def test_set_new_schema_when_one_exist(Manager, schema):
+  Manager.SetSchema(schema)
+  assert not Manager.SetSchema(schema)
+
+
+def test_set_new_schema_when_one_exist_with_force(Manager, schema):
+  Manager.SetSchema(schema)
+  assert Manager.SetSchema(schema, force=True)
+
+
+def test_get_schema_when_schema_exists(Manager):
+  Manager.SetSchema(schema)
+  assert len(Manager.GetLoadedSchema()['fields']) > 0
+
+
+# endregion
+# region Collection tests
+
+
 def test_create_collection(Manager, schema):
-  result = Manager.RecreateCollection(schema, schemaName=schema['name'])
+  Manager.SetSchema(schema)
+  result = Manager.RecreateCollection()
   assert result.Success
 
 
 def test_file_indexing_and_searching(Manager, documents, schema):
-  result = Manager.RecreateCollection(schema, TEST_COLLECTION)
+  Manager.SetSchema(schema)
+  result = Manager.RecreateCollection()
   assert result.Success
   response = Manager.IndexDocuments(schema['name'], documents)
   assert response.Success  # will be true if all files are indexed correctly.
@@ -60,7 +85,8 @@ def test_file_indexing_and_searching(Manager, documents, schema):
 
 
 def test_search_with_few_result_case(Manager, documents, schema):
-  result = Manager.RecreateCollection(schema, TEST_COLLECTION)
+  Manager.SetSchema(schema)
+  result = Manager.RecreateCollection()
   assert result.Success
   response = Manager.IndexDocuments(schema['name'], documents)
   assert response.Success  # will be true if all files are indexed correctly.
@@ -72,7 +98,8 @@ def test_search_with_few_result_case(Manager, documents, schema):
 
 
 def test_search_with_many_results_case(Manager, documents, schema):
-  result = Manager.RecreateCollection(schema, TEST_COLLECTION)
+  Manager.SetSchema(schema)
+  result = Manager.RecreateCollection()
   assert result.Success
   response = Manager.IndexDocuments(schema['name'], documents)
   assert response.Success  # will be true if all files are indexed correctly.
@@ -81,3 +108,6 @@ def test_search_with_many_results_case(Manager, documents, schema):
   print(response)
   assert response.Data['confidence'] == 0
   assert len(response.Data['documents']) == 7  # documents with the word ocean in it.
+
+
+# endregion

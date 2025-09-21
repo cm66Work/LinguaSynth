@@ -19,7 +19,7 @@ class ServerResponse(LogUtil):
   def GenerateServerResponse(
     self,
     success: bool,
-    message: str,
+    message: str = '',
     className: str = '',
     errorType: ErrorTypes = ErrorTypes.Ok,
     extraData: dict = {},
@@ -37,6 +37,6 @@ class ServerResponse(LogUtil):
       Object with both a result (bool) and message (str).
       Also returns extraData on the end if any passed.
     """
-    if generateLog:
+    if generateLog or len(message) > 0:
       self.GenerateLogMessage(message, className=className, errorType=errorType)
     return ServerResponseObject(Success=success, Message=message, Data=extraData)

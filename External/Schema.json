@@ -1,6 +1,5 @@
 {
   "name": "desserts",
-  "num_documents": 0,
   "fields": [
     { "name": "dessert_name", "type": "string" },
     { "name": "category", "type": "string", "facet": true }, 
@@ -16,6 +15,5 @@
     { "name": "serving_styles", "type": "string[]", "optional": true },
     { "name": "references", "type": "string[]", "optional": true },
     { "name": "default_sorting_field", "type": "int32", "optional": true }
-  ],
-  "default_sorting_field": "first_appearance_year"
+  ]
 }
