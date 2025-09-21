@@ -1,7 +1,7 @@
-import json
-from typing import Any
 import os
-from Managers.MinIOManager import MinIOManager
+from Managers.MinIOManager import (
+  MinIOManager,
+)
 from Utils.ServerResponse import ServerResponseObject
 
 UPLOAD_ORIGINAL_BUCKET_NAME = 'original'
@@ -28,8 +28,12 @@ class MinIO_Object:
     self.client = MinIOManager(username, password, address, port)
 
   async def UploadNewFileToBucket(
-    self, fileName: str, originalContent: str, summarizedContent: str
-  ) -> dict[str, Any]:
+    self,
+    fileName: str,
+    summarizedFilename: str,
+    originalContent: str,
+    summarizedContent: str,
+  ) -> ServerResponseObject:
     """
     Saves two copies of the same file, one summarized and one original to
     the minio bucket.
@@ -52,8 +56,11 @@ class MinIO_Object:
     summaryResult = self.___UploadContentToTargetBucket(
       UPLOAD_SUMMARIZED_BUCKET_NAME, filename, summarizedContent
     )
-
-    return {'originalFile': originalResult, 'summarizedFile': summaryResult}
+    return self.client.serverResponseUtil.GenerateServerResponse(
+      success=True,
+      message='',
+      extraData={'originalFile': originalResult, 'summarizedFile': summaryResult},
+    )
 
   def ___UploadContentToTargetBucket(
     self, bucketName: str, fileName: str, content: str

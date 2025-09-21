@@ -28,19 +28,18 @@ class Typesense_Object:
   # def CreateNewCollection(self):
 
   # TODO:: Convert this so we can process multiple index multiple files at a time.
-  def IndexFileIntoCollection(self, file: str, fileId: int, collectionName: str):
+  def IndexFileIntoCollection(self, files: list[str], collectionName: str):
     # if not self.collectionValid:
     # self.__ValidateCollectionExistence(collectionName)
     # insert the id into the summarized file
     # this is what is returned by the system when we search for a result.
-    jsonFile = json.loads(file)
-    # we have only been passed the fields
-    jsonFile['databaseID'] = fileId
+    # jsonFile = json.loads(file)
+    # # we have only been passed the fields
+    # jsonFile['databaseID'] = fileId
 
-    file = json.dumps(jsonFile, separators=(',', ':'))
-    file = file.replace("'", '"')
-
-    return self.client.IndexDocuments(collectionName, str([file]))
+    # file = json.dumps(jsonFile, separators=(',', ':'))
+    # file = file.replace("'", '"')
+    return self.client.IndexDocuments(collectionName, files[0])
 
   def UserSearchQuery(self, collectionName: str = '', userQuery: str = ''):
     if not self.collectionValid:
@@ -52,19 +51,26 @@ class Typesense_Object:
   #   if not self.client.CollectionExists(collectionName):
   #     self.CreateNewCollection()
 
-  def GetSchemaContent(self) -> str:
+  def GetAllSchemas(self) -> dict[str, Any]:
     """
     Returns the schema that is currently loaded
     Return type is string so convert before modifying it.
     """
-    schema = self.client.GetLoadedSchemas()
-
-    self.client.serverResponseUtil.GenerateLogMessage(f'here -->> {schema}')
     # return only the fields, because everything else needs to remain the same.
-    result = json.loads(str(schema))
-    self.client.serverResponseUtil.GenerateLogMessage(f'here -->> {result}')
-    return json.dumps(result)
+    return self.client.GetLoadedSchemas()
 
-  def GetSchemaFields(self) -> str:
-    result = json.loads(self.GetSchemaContent())
-    return json.dumps(result['fields'])
+  def GetSchema(self, schemaName: str) -> dict[str, Any] | None:
+    """
+    Returns the schema object if it exists.
+    Returns None if if does not.
+    """
+    for schema in self.client.GetLoadedSchemas():
+      if schema['name'] == schemaName:  # type: ignore
+        return schema  # type: ignore
+    return None
+
+  def GetSchemaFields(self, schemaName: str) -> list[Any]:
+    for schema in self.GetAllSchemas():
+      if schema['name'] == schemaName:  # type: ignore
+        return schema  # type: ignore
+    return []

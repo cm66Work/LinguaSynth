@@ -33,20 +33,128 @@ async def HealthCheck():
 
 
 # --- File summarization ---
+@app.post('/uploadfilev2')
+async def UploadNewDocument(
+  document: UploadFile, schemaName: str
+) -> ServerResponseObject:
+  uploadedDocument = str(await document.read())
+
+  # -- validations
+  schemaResult = __HandleSchemaValidation(schema=schemaName)
+  if not schemaResult.Success:
+    return serverResponse.GenerateServerResponse(
+      success=False, message=schemaResult.Message, extraData=schemaResult.Data
+    )
+
+  # -- typesense document building
+  # only process using the schemas files, everything else will be added later.
+  schemaFields = schemaResult.Data['schema']['fields']
+  # Summarize the uploaded document and format it to match typesense's document format.
+  serverResponse.GenerateLogMessage(
+    messageString='Generating summarized version of the document using the given schema.'
+  )
+  summarizedContent = await llmObject.HandleContentSummarization(
+    uploadedDocument, json.dumps(schemaFields)
+  )
+  summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
+  # Clean out any extra LLM generated text.
+  generatedDocument = __SanitizeJson(summarizedContent.Response)
+  postgresResults = await __HandlePostgresIndexing(
+    str(document.filename), summarizedDocumentName
+  )
+  if not postgresResults.Success:
+    return postgresResults
+
+  # Update the database document ID number.
+  generatedDocument = json.loads(generatedDocument)
+  generatedDocument['databaseID'] = int(
+    postgresResults.Data['insertedRow'][0]
+  )  # 0 is the primary key 'id'
+  # generatedDocument = json.dumps(generatedDocument)
+
+  # Uploading of the document to MinIO
+  serverResponse.GenerateLogMessage(messageString='Uploading files to minio server')
+  uploadResults = await minioObject.UploadNewFileToBucket(
+    fileName=str(document.filename),
+    summarizedFilename=summarizedDocumentName,
+    originalContent=uploadedDocument,
+    summarizedContent=str(generatedDocument),
+  )
+  if not uploadResults.Data['summarizedFile'].Success:
+    return serverResponse.GenerateServerResponse(
+      success=False,
+      message='APIs-UploadFile:: Failed to upload file to Minio.',
+      errorType=ErrorTypes.Error,
+    )
+
+  # index the file into typesense.
+  typesenseResponse = await __HandleTypesenseIndexing(
+    schemaName, [summarizedContent.Response]
+  )
+  if not typesenseResponse.Success:
+    return typesenseResponse
+
+  return serverResponse.GenerateServerResponse(
+    success=True,
+    message='Upload and summarization completed!',
+  )
+
+
+async def __HandleTypesenseIndexing(
+  schemaName: str, content: list[str]
+) -> ServerResponseObject:
+  # index the file into typesense.
+  return typesenseObject.IndexFileIntoCollection(
+    files=content,
+    collectionName=schemaName,
+  )
+
+
+async def __HandlePostgresIndexing(
+  documentName: str, summarizedDocumentName: str
+) -> ServerResponseObject:
+  postgresResults = await postgresObject.UploadFilePathsToDataBase(
+    documentName, summarizedDocumentName
+  )
+  return postgresResults
+
+
+def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
+  """
+  Validates to see if typesense knows about the schema
+
+  Returns:
+    Server Response Object with the valid schema being loaded into Data['schema']
+  """
+  result = typesenseObject.GetSchema(schema)
+  if result == None:
+    return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
+      success=False,
+      message='No schema loaded with that name.',
+      errorType=ErrorTypes.Info,
+      extraData={},
+    )
+  return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
+    success=True, message=f'{schema} is loaded.', extraData={'schema': result}
+  )
+
+
 @app.post('/uploadfile/')
 async def UploadContentFile(file: UploadFile) -> ServerResponseObject:
   originalContent = str(await file.read())
-
   # Only the fields are needed for the document summarization.
   # All other parts are static and should not be changed.
-  schemaFields = typesenseObject.GetSchemaFields()
+  typesenseObject.client.serverResponseUtil.GenerateLogMessage(
+    f'typing ----> {type(originalContent)} -- {originalContent}'
+  )
+  schemaFields = typesenseObject.GetSchemaFields('')
   if len(schemaFields) <= 0:
     return serverResponse.GenerateServerResponse(
-      False, 'Error::APIs-UploadFile:: Schema content is empty.'
+      False, 'Error::APIs-UploadFile:: No schema set for this document.'
     )
   # Summarize the uploaded document and format it to match typesense's document format.
   summarizedContent = await llmObject.HandleContentSummarization(
-    originalContent, schemaFields
+    originalContent, json.dumps(schemaFields)
   )
   # Clean out any extra LLM generated text.
   document = __SanitizeJson(summarizedContent.Response)
@@ -75,8 +183,8 @@ async def UploadContentFile(file: UploadFile) -> ServerResponseObject:
   )
 
   # index the file into typesense.
-  schema = typesenseObject.GetSchemaContent()
-  collectionName = str(json.loads(schema)['name'])
+  schema = typesenseObject.GetAllSchemas()
+  collectionName = schema['name']
   typesenseObject.IndexFileIntoCollection(
     file=document,
     fileId=postgresResults.Data['insertedRow'][0],  # 0 is the primary key 'id'
