@@ -32,8 +32,9 @@ async def HealthCheck():
   return {'message': 'Healthy'}
 
 
+# region Document Uploading
 # --- File summarization ---
-@app.post('/uploadfilev2')
+@app.post('/uploadfile')
 async def UploadNewDocument(
   document: UploadFile, schemaName: str
 ) -> ServerResponseObject:
@@ -139,61 +140,7 @@ def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
   )
 
 
-@app.post('/uploadfile/')
-async def UploadContentFile(file: UploadFile) -> ServerResponseObject:
-  originalContent = str(await file.read())
-  # Only the fields are needed for the document summarization.
-  # All other parts are static and should not be changed.
-  typesenseObject.client.serverResponseUtil.GenerateLogMessage(
-    f'typing ----> {type(originalContent)} -- {originalContent}'
-  )
-  schemaFields = typesenseObject.GetSchemaFields('')
-  if len(schemaFields) <= 0:
-    return serverResponse.GenerateServerResponse(
-      False, 'Error::APIs-UploadFile:: No schema set for this document.'
-    )
-  # Summarize the uploaded document and format it to match typesense's document format.
-  summarizedContent = await llmObject.HandleContentSummarization(
-    originalContent, json.dumps(schemaFields)
-  )
-  # Clean out any extra LLM generated text.
-  document = __SanitizeJson(summarizedContent.Response)
-
-  # Uploading of the document to MinIO
-  uploadResults = await minioObject.UploadNewFileToBucket(
-    str(file.filename),
-    originalContent,
-    document,
-  )
-  if not uploadResults['summarizedFile'].Success:
-    return serverResponse.GenerateServerResponse(
-      success=False,
-      message='APIs-UploadFile:: Failed to upload file to Minio.',
-      errorType=ErrorTypes.Error,
-    )
-
-  summarizedFilePath = uploadResults['summarizedFile'].Data['file_path']
-
-  originalFilePath = uploadResults['originalFile'].Data['file_path']
-  postgresResults = await postgresObject.UploadFilePathsToDataBase(
-    originalFilePath, summarizedFilePath
-  )
-  postgresObject.client.serverResponseUtil.GenerateLogMessage(
-    f'HERE --> {postgresResults}'
-  )
-
-  # index the file into typesense.
-  schema = typesenseObject.GetAllSchemas()
-  collectionName = schema['name']
-  typesenseObject.IndexFileIntoCollection(
-    file=document,
-    fileId=postgresResults.Data['insertedRow'][0],  # 0 is the primary key 'id'
-    collectionName=collectionName,
-  )
-
-  return serverResponse.GenerateServerResponse(
-    success=True, message='Files uploaded and database updated.', errorType=ErrorTypes.Ok
-  )
+# endregion
 
 
 # --- Schema generation ---
