@@ -2,8 +2,6 @@ import json
 import re
 from typing import cast
 
-import typesense
-
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object

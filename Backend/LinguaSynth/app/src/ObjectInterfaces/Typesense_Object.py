@@ -1,5 +1,6 @@
 import os
 import json
+from typing import Any
 from Utils.ServerResponse import ServerResponseObject
 from Managers.TypesenseManager import TypesenseManager
 
@@ -15,11 +16,14 @@ class Typesense_Object:
     )
     self.collectionValid = False
 
-  def ImportSchema(self, schema, force: bool = False) -> ServerResponseObject:
+  def ImportSchema(self, schema: str, force: bool = False) -> ServerResponseObject:
     # convert to dic to make things easier.
     # processedSchema = json.loads(schema)
     # processedSchema = self.__MutateSchema(schema)
-    return self.client.RecreateCollection(schema, force)
+    # ensure that we are processing a python dict not a json like string
+    # <class 'str'>
+    jsonSchema: dict[str, Any] = json.loads(schema)
+    return self.client.RecreateCollection(jsonSchema, force=force)
 
   # def CreateNewCollection(self):
 
