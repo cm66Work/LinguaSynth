@@ -4,6 +4,9 @@ from typing import Any
 from Utils.ServerResponse import ServerResponseObject
 from Managers.TypesenseManager import TypesenseManager
 
+LLM_LIGHT_GENERATION_MODEL = 'gemma3:270m-it-bf16'  #'gemma3:1b-it-fp16'
+LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
+
 
 class Typesense_Object:
   def __init__(self):
@@ -28,7 +31,7 @@ class Typesense_Object:
   # def CreateNewCollection(self):
 
   # TODO:: Convert this so we can process multiple index multiple files at a time.
-  def IndexFileIntoCollection(self, files: list[str], collectionName: str):
+  def IndexFileIntoCollection(self, document: dict[str, Any], collectionName: str):
     # if not self.collectionValid:
     # self.__ValidateCollectionExistence(collectionName)
     # insert the id into the summarized file
@@ -39,7 +42,12 @@ class Typesense_Object:
 
     # file = json.dumps(jsonFile, separators=(',', ':'))
     # file = file.replace("'", '"')
-    return self.client.IndexDocuments(collectionName, files[0])
+
+    # Validate the file against the schema.
+    schema = self.GetSchema(collectionName)
+    validatedFile = map_to_schema(document=document, schema=schema)  # type: ignore
+    self.client.serverResponseUtil.GenerateLogMessage(f'validatedFile {validatedFile}')
+    return self.client.IndexDocuments(collectionName, validatedFile)
 
   def UserSearchQuery(self, collectionName: str = '', userQuery: str = ''):
     if not self.collectionValid:
@@ -74,3 +82,75 @@ class Typesense_Object:
       if schema['name'] == schemaName:  # type: ignore
         return schema  # type: ignore
     return []
+
+  # def AskQuestion(self, searchSchema: str, question: str) -> ServerResponseObject:
+  #   return self.client.nlSearch(
+  #     collection=searchSchema,
+  #     question=question,
+  #     minHits=0,
+  #     queryBy='dessert_name',
+  #     model=LLM_HEAVY_GENERATION_MODEL,
+  #   )
+
+  def AskQuestion(self, searchSchema: str, query: str) -> ServerResponseObject:
+    return self.client.askQuery(searchSchema, query)
+
+
+# region Utils
+def default_value(expected_type: str):
+  """Return a safe default value for a Typesense type."""
+  if expected_type == 'string':
+    return ''
+  elif expected_type == 'int32':
+    return 0
+  elif expected_type == 'int64':
+    return 0
+  elif expected_type == 'float':
+    return 0.0
+  elif expected_type == 'bool':
+    return False
+  elif expected_type.endswith('[]'):
+    return []
+  return None
+
+
+def coerce_value(value: Any, expected_type: str):
+  """Coerce value into Typesense schema type safely."""
+  try:
+    if value is None or value == '':
+      return default_value(expected_type)
+
+    if expected_type == 'string':
+      return str(value)
+    elif expected_type == 'int32':
+      return int(float(value))  # allows "42.0" → 42
+    elif expected_type == 'float':
+      return float(value)
+    elif expected_type == 'bool':
+      if isinstance(value, bool):
+        return value
+      if str(value).lower() in ['true', '1', 'yes']:
+        return True
+      if str(value).lower() in ['false', '0', 'no']:
+        return False
+      return default_value('bool')
+    elif expected_type.endswith('[]'):
+      inner_type = expected_type[:-2]
+      if not isinstance(value, list):
+        value = [value]  # wrap non-list into a list
+      return [coerce_value(v, inner_type) for v in value]
+  except Exception:
+    return default_value(expected_type)
+
+  return default_value(expected_type)
+
+
+def map_to_schema(document: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+  """Always return a document that matches schema, filling missing or bad values with defaults."""
+  mapped_doc = {}
+  for field in schema['fields']:
+    name = field['name']
+    expected_type = field['type']
+    raw_value = document.get(name, None)
+    mapped_doc[name] = coerce_value(raw_value, expected_type)
+  return mapped_doc

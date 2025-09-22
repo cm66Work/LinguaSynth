@@ -1,5 +1,6 @@
 from Managers.LLMManager import LLMManager, LLMServerResponseObject
 import os
+# from jsonschema import validate, ValidationError
 
 # --- Constants ---
 LLM_LIGHT_GENERATION_MODEL = 'gemma3:270m-it-bf16'  #'gemma3:1b-it-fp16'
@@ -24,6 +25,9 @@ class LLM_Object:
     self.client = LLMManager(
       hostAddress=f'{address}:{port}', model=LLM_LIGHT_GENERATION_MODEL
     )
+
+  async def Generate(self, prompt: str) -> LLMServerResponseObject:
+    return await self.client.Generate(model=LLM_HEAVY_GENERATION_MODEL, prompt=prompt)
 
   # --- Handlers ---
   async def HandleSchemaGeneration(self, content: str):
@@ -59,12 +63,12 @@ class LLM_Object:
       # Light model is two small to get good enough results at the moment.
       model=LLM_HEAVY_GENERATION_MODEL,
       prompt=f"""
-        Schema fields:{schemaFields}
-        Document:{content}
-        Summarize and match all content in the given document to all "name" key values based on their types as single word tags. Include as much single word detail as possible only. if the type is a list, then include a list of matching keywords. Tags.
-        Output: JSON only.""",
+      Schema fields:{schemaFields}
+      Document:{content}
+      Summarize and match all content in the given document to all "name" key values based on their types as single word tags. Include as much single word detail as possible only. if the type is a list, then include a list of matching keywords. Tags.
+      Output: JSON only.
+      """,
     )
     return result
 
-
-# f'{schemaFields}. \nUse the provided schema fields to summarize the following content, only including what is necessary and relevant to each field. Including only all "name" keys from the fields in your response is critical. \nDocument to summarize: {content}. \n respond with json only',
+  # f'{schemaFields}. \nUse the provided schema fields to summarize the following content, only including what is necessary and relevant to each field. Including only all "name" keys from the fields in your response is critical. \nDocument to summarize: {content}. \n respond with json only',
