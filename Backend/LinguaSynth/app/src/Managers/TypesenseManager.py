@@ -2,8 +2,11 @@ import json
 from typing import Any
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
+import requests
 from typesense.client import Client
 from typesense.types.collection import CollectionCreateSchema
+
+OLLAMA_HOST = 'http://ollama:11434'
 
 
 class TypesenseManager:
@@ -22,6 +25,21 @@ class TypesenseManager:
         'connection_timeout_seconds': 5,
       }
     )
+    self.typesenseURL = f'http://{host}:{port}'
+    self.apiKey = apiKey
+
+    # have to create the model inside typesense before we can use it.
+    self.nlModelId = 'default-search'
+    payload = {
+      'id': f'{self.nlModelId}',
+      'model_name': 'ollama/gemma3:270m-it-bf16',
+      'api_url': 'http://ollama:11434/api/generate',
+      'max_bytes': 16000,
+      'temperature': 0.0,
+      'system_prompt': '',
+    }
+    self.model = requests.post(url=self.typesenseURL, json=payload)
+
     # typesense maps this to a
     self.schema: CollectionCreateSchema = {'name': 'default', 'fields': []}
     self.serverResponseUtil = ServerResponse('Typesense', 'typesense_log')
@@ -116,7 +134,7 @@ class TypesenseManager:
         success=False, message=f'EXCEPTION::Typesense.DeleteCollection:: {e}'
       )
 
-  def IndexDocuments(self, collection: str, docs: str):
+  def IndexDocuments(self, collection: str, docs: dict[str, Any]):
     """
     Imports document content into Typesense
     Args:
@@ -124,32 +142,29 @@ class TypesenseManager:
         documents (JSONLines): JSONLines list of documents to upload.
           Format = [{id, schema files...},]
     """
-    result = self.client.collections[collection].documents.import_(
-      documents=docs, import_parameters={'action': 'upsert'}
-    )
 
-    # Import method does not fail if a document fails to upload.
-    # So we need to sort our the failed documents from the success documents.
-    # Reasons for the failed upload are provided in the return object for each document.
-    # TODO:: fix response error handling, result could have a return of a list or string
-    # errorList = []
-    # for r in result:
-    #   if not r['success']:
-    #     errorList.append(r)
-    # if len(errorList) > 0:
-    #   return self.serverResponseUtil.GenerateServerResponse(
-    #     success=False,
-    #     message=f'ERROR::TypesenseManager.IndexDocuments:: {len(errorList)} number of documents failed to import, see logs for more details',
-    #     extraData={'errors': errorList},
-    #   )
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=True,
-      message=f'{len(result)} documents uploaded successfully.',
-      extraData={'result': result},
-    )
+    try:
+      # result = self.client.collections[collection].documents.import_(
+      #   documents=docs, import_parameters={'action': 'upsert'}
+      # )
+      # document = json.loads(docs)
+      result = self.client.collections[collection].documents.upsert(docs)
+      self.serverResponseUtil.GenerateLogMessage(
+        f'loaded: {self.client.collections[collection].retrieve()}'
+      )
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=True,
+        message=f'{result} documents uploaded successfully. {self.client.collections[collection].documents.export()}',
+        extraData={'result': result},
+      )
+    except Exception as e:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message=f'{e} documents uploaded Failed to index. {self.client.collections[collection].documents.export()}',
+      )
 
   def NewQuery(
-    self, collection: str, question: str, queryBy='content,name', minHits=2, maxHits=20
+    self, collection: str, question: str, queryBy='name', minHits=2, maxHits=20
   ):
     """
     Queries typesense and applies rule response filters.
@@ -170,6 +185,7 @@ class TypesenseManager:
       'query_by': queryBy,
     }
     results = self.client.collections[collection].documents.search(search_params)  # type: ignore
+    self.serverResponseUtil.GenerateLogMessage(f'result:{results}')
     hits = results.get('hits', [])
     n = len(hits)
 
@@ -202,3 +218,122 @@ class TypesenseManager:
     return self.client.collections.retrieve()  # type: ignore
 
   # endregion
+
+  # region Asking questions
+
+  def typesense_nl_search(self, collectionName, query: str, per_page: int = 5):
+    """
+    Perform a natural language search on Typesense using the new 'q' parameter.
+    """
+    url = f'{self.typesenseURL}/collections/{collectionName}/documents/search'
+
+    headers = {
+      'X-TYPESENSE-API-KEY': self.apiKey,
+      'Content-Type': 'application/json',
+    }
+
+    payload = {
+      'q': query,
+      'query_by': '*',  # relies on natural language search across all fields
+      'per_page': per_page,
+      'nl_query': 'true',  # enables NL search in Typesense v0.26+
+      'nl_model_id': f'{self.nlModelId}',
+    }
+
+    resp = requests.get(url, headers=headers, params=payload, timeout=60)
+    resp.raise_for_status()
+    self.serverResponseUtil.GenerateLogMessage(f'NL search: {resp.json}')
+    return resp.json()
+
+  def summarize_with_ollama(self, results, model='llama3'):
+    """
+    Pass search results into Ollama for summarization/refinement.
+    """
+    hits = results.get('hits', [])
+    docs = []
+    self.serverResponseUtil.GenerateLogMessage(f'docs {hits}, {type(hits)}')
+    for item in hits:
+      self.serverResponseUtil.GenerateLogMessage(
+        f'item: {item["document"]}, {type(item["document"])}'
+      )
+      docs.append(item['document'])
+
+    # docs = '\n\n'.join([doc['document'] for doc in results.get('hits', [])])
+
+    payload = {
+      'model': model,
+      'prompt': f'Summarize the following search results:\n\n{docs}',
+    }
+
+    resp = requests.post(
+      f'{OLLAMA_HOST}/api/generate', json=payload, stream=False, timeout=60
+    )
+    resp.raise_for_status()
+    return resp.json().get('response', '').strip()
+
+  def askQuery(self, collectionName: str, query) -> ServerResponseObject:
+    query = json.loads(query)
+    result = self.client.collections[collectionName].documents.search(query)
+    return self.serverResponseUtil.GenerateServerResponse(
+      success=True, message='testing', extraData={'result': result}
+    )
+
+  def ask_question(self, collectionName, question: str) -> ServerResponseObject:
+    """
+    High-level method: search Typesense with NL query, then summarize with Ollama.
+    """
+    results = self.typesense_nl_search(collectionName, question)
+    # summary = self.summarize_with_ollama(results, model='gemma3:270m-it-bf16')
+    hits = results.get('hits', [])
+    docs = []
+    self.serverResponseUtil.GenerateLogMessage(f'docs {hits}, {type(hits)}')
+    for item in hits:
+      self.serverResponseUtil.GenerateLogMessage(
+        f'item: {item["document"]}, {type(item["document"])}'
+      )
+      docs.append(item['document'])
+
+    if len(docs) <= 0:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message='Failed to find any information to the users question.'
+      )
+    return self.serverResponseUtil.GenerateServerResponse(
+      success=True,
+      message=f'Found {len(docs)} to users question.',
+      extraData={'results': docs},
+    )
+
+  # endregion
+
+  def GetAllModels(self):
+    url = f'{self.typesenseURL}/nl_search_models'
+
+    headers = {
+      'X-TYPESENSE-API-KEY': self.apiKey,
+      'Content-Type': 'application/json',
+    }
+    resp = requests.get(url, headers=headers, timeout=60)
+    return self.serverResponseUtil.GenerateServerResponse(
+      success=resp.ok, message=str(resp.content)
+    )
+
+  def LoadModel(self):
+    self.nlModelId = 'default-search'
+    payload = {
+      'id': f'{self.nlModelId}',
+      'model_name': 'ollama/gemma3:270m-it-bf16',
+      'api_url': 'http://ollama:11434/api/generate',
+      'max_bytes': 16000,
+      'temperature': 0.0,
+      'system_prompt': '',
+    }
+    headers = {
+      'X-TYPESENSE-API-KEY': self.apiKey,
+      'Content-Type': 'application/json',
+    }
+    resp = requests.post(
+      url=f'{self.typesenseURL}/nl_search_models', headers=headers, json=payload
+    )
+    return self.serverResponseUtil.GenerateServerResponse(
+      success=resp.ok, message=str(resp.content)
+    )

@@ -1,6 +1,6 @@
 import json
 import re
-from typing import cast
+from typing import Any, cast
 
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
@@ -89,9 +89,7 @@ async def UploadNewDocument(
     )
 
   # index the file into typesense.
-  typesenseResponse = await __HandleTypesenseIndexing(
-    schemaName, [summarizedContent.Response]
-  )
+  typesenseResponse = await __HandleTypesenseIndexing(schemaName, generatedDocument)
   if not typesenseResponse.Success:
     return typesenseResponse
 
@@ -102,11 +100,11 @@ async def UploadNewDocument(
 
 
 async def __HandleTypesenseIndexing(
-  schemaName: str, content: list[str]
+  schemaName: str, content: dict[str, Any]
 ) -> ServerResponseObject:
   # index the file into typesense.
   return typesenseObject.IndexFileIntoCollection(
-    files=content,
+    document=content,
     collectionName=schemaName,
   )
 
@@ -128,7 +126,7 @@ def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
     Server Response Object with the valid schema being loaded into Data['schema']
   """
   result = typesenseObject.GetSchema(schema)
-  if result == None:
+  if result is None:
     return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
       success=False,
       message='No schema loaded with that name.',
@@ -143,7 +141,87 @@ def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
 # endregion
 
 
-# --- Schema generation ---
+# region User Questions
+@app.post('/question')
+async def UserQuestion(searchSchema: str, question: str):
+  query = await GenerateQuery(searchSchema, question)
+  questionResults = typesenseObject.AskQuestion(searchSchema, query)
+  print(questionResults.Data['result'])
+  if not questionResults.Success:
+    return serverResponse.GenerateServerResponse(
+      success=False, message='failed to find information related to users question'
+    )
+  questionResults = questionResults.Data['results']
+  return await llmObject.Generate(
+    f"""
+    Data: {questionResults}
+    Answer the following user question using the data provided.
+    User Question: {question}
+    """
+  )
+
+
+async def GenerateQuery(searchSchema: str, userQuestion: str):
+  schema = typesenseObject.GetSchema(searchSchema)
+  schemaFields = schema['fields']  # type: ignore
+  # only need the field names for the query generation.
+  fieldsNames = []
+  for field in schemaFields:
+    fieldsNames.append(field['name'])
+  print(fieldsNames)
+  # TODO:: WE just need to fixe the schema mapping of the types.
+  # I think right now it is setting the types wrong.
+  prompt = f"""
+    You are a query translator that converts natural language questions into valid Typesense JSON search queries.
+
+    ## Instructions:
+    - Always return a JSON object with the correct structure for the Typesense Search API.
+    - Do not add explanations or text outside the JSON.
+    - If the question is vague, choose the most relevant fields.
+    - If the user asks for filtering, use `filter_by`.
+    - If ranking is implied, use `sort_by`.
+    - If multiple fields are relevant, search across them with `q`.
+
+    ## Schema fields:
+    {fieldsNames}
+      
+    ## Example User Questions and Queries:
+    Q: "Find books by Isaac Asimov"
+    A:
+    {{
+    'q': "Isaac Asimov",
+      "query_by": "author"
+    }}
+
+    Q: "science fiction novels after 2010"
+    A:
+    {{
+    'q': "science fiction",
+      "query_by": "genre,title,summary",
+      "filter_by": "year:>2010"
+    }}
+
+    Q: "sort fantasy books by newest"
+    A:
+    {{
+    'q': "fantasy",
+      "query_by": "genre,title,summary",
+      "sort_by": "year:desc"
+    }}
+    ---
+    ## Task:
+    User Question: "{userQuestion}"
+
+    Generate the correct Typesense query JSON: You must include q, query_by, and filter_by in your response.
+  """
+  result = await llmObject.Generate(prompt)
+  return __SanitizeJson(result.Response)
+
+
+# endregion
+
+
+# region Schema
 @app.post('/generate-schema/')
 async def GenerateSchema(file: UploadFile) -> ServerResponseObject:  # pyright: ignore[reportGeneralTypeIssues]
   # TODO:: Sanitize generated schema
@@ -187,7 +265,8 @@ def __SanitizeJson(content: str) -> str:
 
   content = match.group(0)
   content = content.replace('\\n', '')
-
+  content = content.replace("'", '"')
+  print(content)
   # Normalize schema (handles double-encoded JSON too)
   content = json.loads(
     json.loads(content) if content.strip().startswith("'") else content
@@ -205,13 +284,4 @@ def __MutateSchema(schema: str):
   return json.dumps(data, separators=(',', ':'))
 
 
-# def __MutateFile(schema: str):
-#   data = json.loads(json.loads(schema) if schema.strip().startswith("'") else schema)
-#   fields = data['fields']
-#   print(f'_mutate d : {fields}')
-#   for field in fields:
-#     if field['name'] == 'databaseID':
-#       return json.dumps(data, separators=(',', ':'))
-#   fields.insert(0, {'databaseID', 'type': 'int64'})
-#   data['fields'] = fields
-#   return json.dumps(data, separators=(',', ':'))
+# endregion
