@@ -47,7 +47,7 @@ class LLM_Object:
     return await result
 
   async def HandleContentSummarization(
-    self, content: str, schemaFields: str
+    self, content: str, schemaFields
   ) -> LLMServerResponseObject:
     """
     Generates a summarized version of the content using the provided schema.
@@ -65,10 +65,57 @@ class LLM_Object:
       prompt=f"""
       Schema fields:{schemaFields}
       Document:{content}
-      Summarize and match all content in the given document to all "name" key values based on their types as single word tags. Include as much single word detail as possible only. if the type is a list, then include a list of matching keywords. Tags.
+      Summarize and match all content in the given document to all "name" key values based on their 'types'.
+      Include as much single word detail as possible only.
+      For each filed name match your result to its associated type. 
+      For example: {{'dessert_name': 'string'}} must be result in {{'dessert_name': 'cake'}}
+      For example: {{'first_appearance_year': 'int32'}} must be result in {{'first_appearance_year': 1900}}
+      Example output:
+      {{
+        "id": "124",
+        "company_name": "Stark Industries",
+        "num_employees": 5215,
+        "country": "USA"
+      }}
+
       Output: JSON only.
       """,
     )
     return result
 
   # f'{schemaFields}. \nUse the provided schema fields to summarize the following content, only including what is necessary and relevant to each field. Including only all "name" keys from the fields in your response is critical. \nDocument to summarize: {content}. \n respond with json only',
+
+  #  You are a query generator. Convert a user question into a valid Typesense search query JSON.
+
+  #   Rules:
+  #   - Only include string or string[] fields in "query_by".
+  #   - Use numeric or date fields only in "filter_by" or "sort_by".
+  #   - Always return only JSON, no explanations.
+
+  #   Example:
+  #   Q: "Find books by Isaac Asimov"
+  #   A:
+  #   {{
+  #   'q': "Isaac Asimov",
+  #     "query_by": "author",
+  #     "filter_by": "year:>2010",
+  #   }}
+
+  #   Q: "science fiction novels after 2010"
+  #   A:
+  #   {{
+  #   'q': "science fiction",
+  #     "query_by": "genre,title,summary"
+  #     "filter_by": "year:>2010",
+  #     "sort_by": "year:desc",
+  #   }}
+
+  #   Schema fields:
+  #   {fieldsNames}
+
+  #   User question:
+  #   {userQuestion}
+
+  #   Generate the correct Typesense query JSON:
+  #   You must include q, query_by, and filter_by in your response.
+  #   You must include q, query_by, and filter_by in your response.

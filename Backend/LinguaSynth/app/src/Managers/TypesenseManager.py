@@ -134,7 +134,7 @@ class TypesenseManager:
         success=False, message=f'EXCEPTION::Typesense.DeleteCollection:: {e}'
       )
 
-  def IndexDocuments(self, collection: str, docs: dict[str, Any]):
+  def IndexDocuments(self, collectionName: str, docs: dict[str, Any]):
     """
     Imports document content into Typesense
     Args:
@@ -148,19 +148,19 @@ class TypesenseManager:
       #   documents=docs, import_parameters={'action': 'upsert'}
       # )
       # document = json.loads(docs)
-      result = self.client.collections[collection].documents.upsert(docs)
+      result = self.client.collections[collectionName].documents.upsert(docs)
       self.serverResponseUtil.GenerateLogMessage(
-        f'loaded: {self.client.collections[collection].retrieve()}'
+        f'loaded: {self.client.collections[collectionName].retrieve()}'
       )
       return self.serverResponseUtil.GenerateServerResponse(
         success=True,
-        message=f'{result} documents uploaded successfully. {self.client.collections[collection].documents.export()}',
+        message=f'{result} documents uploaded successfully. {self.client.collections[collectionName].documents.export()}',
         extraData={'result': result},
       )
     except Exception as e:
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
-        message=f'{e} documents uploaded Failed to index. {self.client.collections[collection].documents.export()}',
+        message=f'{e} documents uploaded Failed to index. {self.client.collections[collectionName].documents.export()}',
       )
 
   def NewQuery(self, collectionName: str, query, minHits=2, maxHits=20):
