@@ -93,7 +93,7 @@ class Typesense_Object:
   #   )
 
   def AskQuestion(self, searchSchema: str, query: str) -> ServerResponseObject:
-    return self.client.askQuery(searchSchema, query)
+    return self.client.NewQuery(searchSchema, query)
 
 
 # region Utils

@@ -163,9 +163,7 @@ class TypesenseManager:
         message=f'{e} documents uploaded Failed to index. {self.client.collections[collection].documents.export()}',
       )
 
-  def NewQuery(
-    self, collection: str, question: str, queryBy='name', minHits=2, maxHits=20
-  ):
+  def NewQuery(self, collectionName: str, query, minHits=2, maxHits=20):
     """
     Queries typesense and applies rule response filters.
     Args:
@@ -180,23 +178,27 @@ class TypesenseManager:
           confidence (key: int): range from -1 to 1 based on how confident the system is about the response.
           documents (key list[str]): Names of documents found.
     """
-    search_params = {
-      'q': question,
-      'query_by': queryBy,
-    }
-    results = self.client.collections[collection].documents.search(search_params)  # type: ignore
+    query = json.loads(query)
+    results = self.client.collections[collectionName].documents.search(query)
     self.serverResponseUtil.GenerateLogMessage(f'result:{results}')
     hits = results.get('hits', [])
     n = len(hits)
 
     responseMessage = ''
     confidence = 0
-    documentNames = [h['document']['name'] for h in hits]
-    if n < minHits:
-      responseMessage = 'Not sure of the answer.'
+    # documentNames = [h['document']['name'] for h in hits]
+    if n < minHits or n == 0:
+      responseMessage = """
+      You are not sure of the answer and cant answer.
+      refuse to answer the question as you do not know the answer.
+      You do not have the information loaded in your database.
+      """
       confidence = -1
     elif n > maxHits:
-      responseMessage = 'Question is not clear enough.'
+      responseMessage = """
+      The users questions not clear enough.
+      Refuse to answer the question and instead ask if the user could be a little more specific.
+      """
       confidence = 0
     else:
       responseMessage = f'Found {n} documents.'
@@ -204,11 +206,11 @@ class TypesenseManager:
 
     return self.serverResponseUtil.GenerateServerResponse(
       success=True,
-      message=f'Found {len(documentNames)} related to user query.',
+      message=f'Found {len(hits)} related to user query.',
       extraData={
         'responseMessage': responseMessage,
         'confidence': confidence,
-        'documents': documentNames,
+        'documents': hits,
       },
     )
 
@@ -220,88 +222,20 @@ class TypesenseManager:
   # endregion
 
   # region Asking questions
-
-  def typesense_nl_search(self, collectionName, query: str, per_page: int = 5):
-    """
-    Perform a natural language search on Typesense using the new 'q' parameter.
-    """
-    url = f'{self.typesenseURL}/collections/{collectionName}/documents/search'
-
-    headers = {
-      'X-TYPESENSE-API-KEY': self.apiKey,
-      'Content-Type': 'application/json',
-    }
-
-    payload = {
-      'q': query,
-      'query_by': '*',  # relies on natural language search across all fields
-      'per_page': per_page,
-      'nl_query': 'true',  # enables NL search in Typesense v0.26+
-      'nl_model_id': f'{self.nlModelId}',
-    }
-
-    resp = requests.get(url, headers=headers, params=payload, timeout=60)
-    resp.raise_for_status()
-    self.serverResponseUtil.GenerateLogMessage(f'NL search: {resp.json}')
-    return resp.json()
-
-  def summarize_with_ollama(self, results, model='llama3'):
-    """
-    Pass search results into Ollama for summarization/refinement.
-    """
-    hits = results.get('hits', [])
-    docs = []
-    self.serverResponseUtil.GenerateLogMessage(f'docs {hits}, {type(hits)}')
-    for item in hits:
-      self.serverResponseUtil.GenerateLogMessage(
-        f'item: {item["document"]}, {type(item["document"])}'
-      )
-      docs.append(item['document'])
-
-    # docs = '\n\n'.join([doc['document'] for doc in results.get('hits', [])])
-
-    payload = {
-      'model': model,
-      'prompt': f'Summarize the following search results:\n\n{docs}',
-    }
-
-    resp = requests.post(
-      f'{OLLAMA_HOST}/api/generate', json=payload, stream=False, timeout=60
-    )
-    resp.raise_for_status()
-    return resp.json().get('response', '').strip()
-
   def askQuery(self, collectionName: str, query) -> ServerResponseObject:
-    query = json.loads(query)
-    result = self.client.collections[collectionName].documents.search(query)
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=True, message='testing', extraData={'result': result}
-    )
-
-  def ask_question(self, collectionName, question: str) -> ServerResponseObject:
-    """
-    High-level method: search Typesense with NL query, then summarize with Ollama.
-    """
-    results = self.typesense_nl_search(collectionName, question)
-    # summary = self.summarize_with_ollama(results, model='gemma3:270m-it-bf16')
-    hits = results.get('hits', [])
-    docs = []
-    self.serverResponseUtil.GenerateLogMessage(f'docs {hits}, {type(hits)}')
-    for item in hits:
-      self.serverResponseUtil.GenerateLogMessage(
-        f'item: {item["document"]}, {type(item["document"])}'
-      )
-      docs.append(item['document'])
-
-    if len(docs) <= 0:
+    try:
+      query = json.loads(query)
+      result = self.client.collections[collectionName].documents.search(query)
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False, message='Failed to find any information to the users question.'
+        success=True, message='testing', extraData={'result': result}
       )
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=True,
-      message=f'Found {len(docs)} to users question.',
-      extraData={'results': docs},
-    )
+    except Exception as e:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message=f'Failed to answer user question {e}',
+        extraData={},
+        errorType=ErrorTypes.Exception,
+      )
 
   # endregion
 

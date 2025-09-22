@@ -145,74 +145,84 @@ def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
 @app.post('/question')
 async def UserQuestion(searchSchema: str, question: str):
   query = await GenerateQuery(searchSchema, question)
+  query = json.loads(query)
+  query['filter_by'] = 'first_appearance_year:>-1'
+  query.pop('filter_by')
+
+  print(f'done: ===== {query}')
+
+  query = json.dumps(query)
   questionResults = typesenseObject.AskQuestion(searchSchema, query)
-  print(questionResults.Data['result'])
-  if not questionResults.Success:
+  print(questionResults)
+  if not questionResults.Success or questionResults.Data == {}:
     return serverResponse.GenerateServerResponse(
       success=False, message='failed to find information related to users question'
     )
-  questionResults = questionResults.Data['results']
-  return await llmObject.Generate(
-    f"""
-    Data: {questionResults}
-    Answer the following user question using the data provided.
+  questionResults = questionResults.Data
+
+  # Responses.
+  prompt = ''
+  if questionResults['confidence'] != 0:
+    prompt = f'{questionResults["responseMessage"]} \n {question}'
+  else:
+    prompt = f"""
+    Documents: {questionResults['documents']}
     User Question: {question}
+    Answer the users question using the documents and confidence provided.
     """
-  )
+
+  return await llmObject.Generate(prompt)
 
 
 async def GenerateQuery(searchSchema: str, userQuestion: str):
   schema = typesenseObject.GetSchema(searchSchema)
+
   schemaFields = schema['fields']  # type: ignore
   # only need the field names for the query generation.
   fieldsNames = []
   for field in schemaFields:
-    fieldsNames.append(field['name'])
-  print(fieldsNames)
+    summarizedField = {f'{field["name"]}', f'{field["type"]}'}
+    fieldsNames.append(summarizedField)
+    # fieldsNames.append(field['name'])
+  # print(fieldsNames)
   # TODO:: WE just need to fixe the schema mapping of the types.
   # I think right now it is setting the types wrong.
   prompt = f"""
-    You are a query translator that converts natural language questions into valid Typesense JSON search queries.
 
-    ## Instructions:
-    - Always return a JSON object with the correct structure for the Typesense Search API.
-    - Do not add explanations or text outside the JSON.
-    - If the question is vague, choose the most relevant fields.
-    - If the user asks for filtering, use `filter_by`.
-    - If ranking is implied, use `sort_by`.
-    - If multiple fields are relevant, search across them with `q`.
+    You are a query generator. Convert a user question into a valid Typesense search query JSON.
 
-    ## Schema fields:
-    {fieldsNames}
-      
-    ## Example User Questions and Queries:
+    Rules:
+    - Only include string or string[] fields in "query_by".
+    - Use numeric or date fields only in "filter_by" or "sort_by".
+    - Always return only JSON, no explanations.
+
+    Example:
     Q: "Find books by Isaac Asimov"
     A:
     {{
     'q': "Isaac Asimov",
-      "query_by": "author"
+      "query_by": "author",
+      "filter_by": "year:>2010",
     }}
 
     Q: "science fiction novels after 2010"
     A:
     {{
     'q': "science fiction",
-      "query_by": "genre,title,summary",
-      "filter_by": "year:>2010"
+      "query_by": "genre,title,summary"
+      "filter_by": "year:>2010",
+      "sort_by": "year:desc",
     }}
 
-    Q: "sort fantasy books by newest"
-    A:
-    {{
-    'q': "fantasy",
-      "query_by": "genre,title,summary",
-      "sort_by": "year:desc"
-    }}
-    ---
-    ## Task:
-    User Question: "{userQuestion}"
+    Schema fields:
+    {fieldsNames}
 
-    Generate the correct Typesense query JSON: You must include q, query_by, and filter_by in your response.
+    User question:
+    {userQuestion}
+
+    Generate the correct Typesense query JSON:
+    You must include q, query_by, and filter_by in your response.
+    You must include q, query_by, and filter_by in your response.
   """
   result = await llmObject.Generate(prompt)
   return __SanitizeJson(result.Response)
