@@ -48,14 +48,17 @@ async def UploadNewDocument(
     )
 
   # -- typesense document building
-  # only process using the schemas files, everything else will be added later.
-  schemaFields = schemaResult.Data['schema']['fields']
+  # only need the field names and types for the query generation.
+  fieldsNames = []
+  for field in schemaResult.Data['schema']['fields']:
+    summarizedField = {f'{field["name"]}', f'{field["type"]}'}
+    fieldsNames.append(summarizedField)
   # Summarize the uploaded document and format it to match typesense's document format.
   serverResponse.GenerateLogMessage(
     messageString='Generating summarized version of the document using the given schema.'
   )
   summarizedContent = await llmObject.HandleContentSummarization(
-    uploadedDocument, json.dumps(schemaFields)
+    uploadedDocument, fieldsNames
   )
   summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
   # Clean out any extra LLM generated text.
@@ -96,6 +99,10 @@ async def UploadNewDocument(
   return serverResponse.GenerateServerResponse(
     success=True,
     message='Upload and summarization completed!',
+    extraData={
+      'typesenseResponse': typesenseResponse,
+      'postgresResponse': postgresResults,
+    },
   )
 
 
@@ -143,23 +150,29 @@ def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
 
 # region User Questions
 @app.post('/question')
-async def UserQuestion(searchSchema: str, question: str):
+async def UserQuestion(
+  searchSchema: str, question: str, minHits: int = 2, maxHits: int = 20
+):
   query = await GenerateQuery(searchSchema, question)
   query = json.loads(query)
   query['filter_by'] = 'first_appearance_year:>-1'
   query.pop('filter_by')
 
-  print(f'done: ===== {query}')
+  # print(f'done: ===== {query}')
 
   query = json.dumps(query)
   questionResults = typesenseObject.AskQuestion(searchSchema, query)
-  print(questionResults)
+  # print(questionResults)
   if not questionResults.Success or questionResults.Data == {}:
     return serverResponse.GenerateServerResponse(
       success=False, message='failed to find information related to users question'
     )
   questionResults = questionResults.Data
-
+  document = questionResults.get('documents', [])
+  # limit the amount of information the model gets fed.
+  # helps produce more accurate results.
+  if len(document) > 1:
+    document = document[0]  # only take the first, top most relevance from the search.
   # Responses.
   prompt = ''
   if questionResults['confidence'] != 0:
@@ -168,25 +181,25 @@ async def UserQuestion(searchSchema: str, question: str):
     prompt = f"""
     Documents: {questionResults['documents']}
     User Question: {question}
-    Answer the users question using the documents and confidence provided.
+    Summarize the document data to answer the users question.
+    You are only allowed to use the information provided above to answer the users question.
+    Do not think, only summarize the data to answer the question.
+    Keep your answers short and to the point.
     """
-
-  return await llmObject.Generate(prompt)
+  result = await llmObject.Generate(prompt)
+  result.Data = {'questionResults': questionResults}
+  return result
 
 
 async def GenerateQuery(searchSchema: str, userQuestion: str):
   schema = typesenseObject.GetSchema(searchSchema)
 
   schemaFields = schema['fields']  # type: ignore
-  # only need the field names for the query generation.
+  # only need the field names and types for the query generation.
   fieldsNames = []
   for field in schemaFields:
     summarizedField = {f'{field["name"]}', f'{field["type"]}'}
     fieldsNames.append(summarizedField)
-    # fieldsNames.append(field['name'])
-  # print(fieldsNames)
-  # TODO:: WE just need to fixe the schema mapping of the types.
-  # I think right now it is setting the types wrong.
   prompt = f"""
 
     You are a query generator. Convert a user question into a valid Typesense search query JSON.
