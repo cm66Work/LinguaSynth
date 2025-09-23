@@ -5,6 +5,7 @@ import os
 # --- Constants ---
 LLM_LIGHT_GENERATION_MODEL = 'gemma3:270m-it-bf16'  #'gemma3:1b-it-fp16'
 LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
+# LLM_HEAVY_GENERATION_MODEL = 'gemma3:12b'
 LLM_EXAMPLE_SCHEMA = {
   'name': 'companies',
   'num_documents': 0,
@@ -26,7 +27,7 @@ class LLM_Object:
       hostAddress=f'{address}:{port}', model=LLM_LIGHT_GENERATION_MODEL
     )
 
-  async def Generate(self, prompt: str) -> LLMServerResponseObject:
+  async def Generate(self, prompt: str, think=False) -> LLMServerResponseObject:
     return await self.client.Generate(model=LLM_HEAVY_GENERATION_MODEL, prompt=prompt)
 
   # --- Handlers ---

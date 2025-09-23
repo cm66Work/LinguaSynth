@@ -57,12 +57,24 @@ async def UploadNewDocument(
   serverResponse.GenerateLogMessage(
     messageString='Generating summarized version of the document using the given schema.'
   )
-  summarizedContent = await llmObject.HandleContentSummarization(
-    uploadedDocument, fieldsNames
-  )
-  summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
-  # Clean out any extra LLM generated text.
-  generatedDocument = __SanitizeJson(summarizedContent.Response)
+  success = False
+  message = ''
+  for i in range(0, 3):  # number of retires. # TODO:: this needs to be broken up.
+    summarizedContent = await llmObject.HandleContentSummarization(
+      uploadedDocument, fieldsNames
+    )
+    summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
+    # Clean out any extra LLM generated text.
+    summarizedJson = __SanitizeJson(summarizedContent.Response)
+    generatedDocument = summarizedJson[0]
+    message = generatedDocument
+    success = summarizedJson[1]
+  # there was a problem.
+  if not success:
+    return serverResponse.GenerateServerResponse(
+      success=False, message=f'Failed to summarize uploaded content. {message}'
+    )
+
   postgresResults = await __HandlePostgresIndexing(
     str(document.filename), summarizedDocumentName
   )
@@ -154,14 +166,14 @@ async def UserQuestion(
   searchSchema: str, question: str, minHits: int = 2, maxHits: int = 20
 ):
   query = await GenerateQuery(searchSchema, question)
-  query = json.loads(query)
+  query = json.loads(query[0])
   query['filter_by'] = 'first_appearance_year:>-1'
   query.pop('filter_by')
 
   # print(f'done: ===== {query}')
 
   query = json.dumps(query)
-  questionResults = typesenseObject.AskQuestion(searchSchema, query)
+  questionResults = typesenseObject.AskQuestion(searchSchema, query, minHits, maxHits)
   # print(questionResults)
   if not questionResults.Success or questionResults.Data == {}:
     return serverResponse.GenerateServerResponse(
@@ -171,22 +183,24 @@ async def UserQuestion(
   document = questionResults.get('documents', [])
   # limit the amount of information the model gets fed.
   # helps produce more accurate results.
-  if len(document) > 1:
-    document = document[0]  # only take the first, top most relevance from the search.
+  print(len(document))
+  if (len(document)) > 0:
+    document = document[0][
+      'document'
+    ]  # only take the first, top most relevance from the search.
   # Responses.
   prompt = ''
-  if questionResults['confidence'] != 0:
+  if questionResults['confidence'] != 1:
     prompt = f'{questionResults["responseMessage"]} \n {question}'
   else:
     prompt = f"""
-    Documents: {questionResults['documents']}
+    Documents: {document}
     User Question: {question}
-    Summarize the document data to answer the users question.
-    You are only allowed to use the information provided above to answer the users question.
-    Do not think, only summarize the data to answer the question.
-    Keep your answers short and to the point.
+
+    Summarize the document to answer the users question.
+    return your answer within 50 words.
     """
-  result = await llmObject.Generate(prompt)
+  result = await llmObject.Generate(prompt, think=True)
   result.Data = {'questionResults': questionResults}
   return result
 
@@ -269,14 +283,14 @@ async def UploadCustomSchema(
 ) -> ServerResponseObject:
   content = str(await file.read())
   content = __SanitizeJson(content)
-  content = __MutateSchema(content)
+  content = __MutateSchema(content[0])
   schemaUploadResult = typesenseObject.ImportSchema(content, force)
   if schemaUploadResult.Success:
     return minioObject.UploadSchema(content)
   return schemaUploadResult
 
 
-def __SanitizeJson(content: str) -> str:
+def __SanitizeJson(content: str):
   """
   Extracts the first JSON object from text and normalizes
   it into a single-line valid JSON string.
@@ -284,18 +298,21 @@ def __SanitizeJson(content: str) -> str:
   # Grab first {...} block
   match = re.search(r'\{[\s\S]*\}', content)
   if not match:
-    return ''
+    return ['', False]
 
   content = match.group(0)
   content = content.replace('\\n', '')
   content = content.replace("'", '"')
   print(content)
   # Normalize schema (handles double-encoded JSON too)
-  content = json.loads(
-    json.loads(content) if content.strip().startswith("'") else content
-  )
-  # Return compact JSON string
-  return json.dumps(content, separators=(',', ':'))
+  try:
+    content = json.loads(
+      json.loads(content) if content.strip().startswith("'") else content
+    )
+    # Return compact JSON string
+    return [json.dumps(content, separators=(',', ':')), True]
+  except Exception as e:
+    return [f'{e}', False]
 
 
 def __MutateSchema(schema: str):

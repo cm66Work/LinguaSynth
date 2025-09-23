@@ -57,7 +57,7 @@ class LLMManager:
       )
 
   # --- Generating answers ---
-  async def Generate(self, model: str, prompt='') -> LLMServerResponseObject:
+  async def Generate(self, model: str, prompt='', think=False) -> LLMServerResponseObject:
     """
     Generation request to the current running LLM.
 
@@ -81,7 +81,9 @@ class LLMManager:
       await self.PullModel(imageName=model)
 
     try:
-      result = self.client.generate(model, prompt)
+      result = self.client.generate(
+        model=model, prompt=prompt, keep_alive=30, think=think
+      )
       return self.serverResponseUtil.GenerateServerResponse(
         True,
         'response generated',

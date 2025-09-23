@@ -74,6 +74,18 @@ class Typesense_Object:
     return []
 
   def AskQuestion(
-    self, searchSchema: str, query: str, minHits=2, maxHits=20
+    self, searchSchema: str, query: str, minHits=2, maxHits=20, retries=2
   ) -> ServerResponseObject:
-    return self.client.NewQuery(searchSchema, query, minHits, maxHits)
+    result = self.client.NewQuery(searchSchema, query, minHits, maxHits)
+    for i in range(0, retries):
+      if not result.Success:
+        result = self.client.NewQuery(searchSchema, query, minHits, maxHits)
+      else:
+        break
+
+    if result.Success:
+      return result
+
+    # we tried x times and it still did not work.
+    result.Data.update({'retires': 'max number of retires hit.'})
+    return result

@@ -178,41 +178,46 @@ class TypesenseManager:
           confidence (key: int): range from -1 to 1 based on how confident the system is about the response.
           documents (key list[str]): Names of documents found.
     """
-    query = json.loads(query)
-    results = self.client.collections[collectionName].documents.search(query)
-    self.serverResponseUtil.GenerateLogMessage(f'result:{results}')
-    hits = results.get('hits', [])
-    n = len(hits)
+    try:
+      query = json.loads(query)
+      results = self.client.collections[collectionName].documents.search(query)
+      self.serverResponseUtil.GenerateLogMessage(f'result:{results}')
+      hits = results.get('hits', [])
+      n = len(hits)
 
-    responseMessage = ''
-    confidence = 0
-    # documentNames = [h['document']['name'] for h in hits]
-    if n < minHits or n == 0:
-      responseMessage = """
-      You are not sure of the answer and cant answer.
-      refuse to answer the question as you do not know the answer.
-      You do not have the information loaded in your database.
-      """
-      confidence = -1
-    elif n > maxHits:
-      responseMessage = """
-      The users questions not clear enough.
-      Refuse to answer the question and instead ask if the user could be a little more specific.
-      """
+      responseMessage = ''
       confidence = 0
-    else:
-      responseMessage = f'Found {n} documents.'
-      confidence = 1
+      # documentNames = [h['document']['name'] for h in hits]
+      if n < minHits or n == 0:
+        responseMessage = """
+        You are not sure of the answer and cant answer.
+        refuse to answer the question as you do not know the answer.
+        You do not have the information loaded in your database.
+        """
+        confidence = -1
+      elif n > maxHits:
+        responseMessage = """
+        The users questions not clear enough.
+        Refuse to answer the question and instead ask if the user could be a little more specific.
+        """
+        confidence = 0
+      else:
+        responseMessage = f'Found {n} documents.'
+        confidence = 1
 
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=True,
-      message=f'Found {len(hits)} related to user query.',
-      extraData={
-        'responseMessage': responseMessage,
-        'confidence': confidence,
-        'documents': hits,
-      },
-    )
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=True,
+        message=f'Found {len(hits)} related to user query.',
+        extraData={
+          'responseMessage': responseMessage,
+          'confidence': confidence,
+          'documents': hits,
+        },
+      )
+    except Exception as e:
+      return self.serverResponseUtil.GenerateServerResponse(
+        success=False, message=f'{e}', errorType=ErrorTypes.Warning, generateLog=False
+      )
 
   # region Tools
   def GetLoadedSchemas(self) -> dict[str, Any]:
