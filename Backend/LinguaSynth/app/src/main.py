@@ -9,6 +9,7 @@ from fastapi import FastAPI, UploadFile
 from ObjectInterfaces.LLM_Object import LLM_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
+from Utils import JsonUtils 
 
 
 # --- Objects ---
@@ -49,32 +50,29 @@ async def UploadNewDocument(
 
   # -- typesense document building
   # only need the field names and types for the query generation.
-  fieldsNames = []
+  fields = {}
   for field in schemaResult.Data['schema']['fields']:
-    summarizedField = {f'{field["name"]}', f'{field["type"]}'}
-    fieldsNames.append(summarizedField)
+    summarizedField = {f'{field["name"]}': f'{field["type"]}'}
+    fields.update(summarizedField)
+  fields = JsonUtils.ConvertToJsonSchema(fields) 
   # Summarize the uploaded document and format it to match typesense's document format.
   serverResponse.GenerateLogMessage(
     messageString='Generating summarized version of the document using the given schema.'
   )
-  success = False
-  message = ''
-  for i in range(0, 3):  # number of retires. # TODO:: this needs to be broken up.
-    summarizedContent = await llmObject.HandleContentSummarization(
-      uploadedDocument, fieldsNames
-    )
-    summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
+  summarizedContent = await llmObject.HandleContentSummarization(uploadedDocument, fields)
     # Clean out any extra LLM generated text.
-    summarizedJson = __SanitizeJson(summarizedContent.Response)
-    generatedDocument = summarizedJson[0]
-    message = generatedDocument
-    success = summarizedJson[1]
-  # there was a problem.
+  summarizedJson = __SanitizeJson(summarizedContent.Response)
+  generatedDocument = summarizedJson[0]
+  message = generatedDocument
+  success = summarizedJson[1]
+  
   if not success:
     return serverResponse.GenerateServerResponse(
       success=False, message=f'Failed to summarize uploaded content. {message}'
     )
 
+
+  summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
   postgresResults = await __HandlePostgresIndexing(
     str(document.filename), summarizedDocumentName
   )
@@ -116,7 +114,6 @@ async def UploadNewDocument(
       'postgresResponse': postgresResults,
     },
   )
-
 
 async def __HandleTypesenseIndexing(
   schemaName: str, content: dict[str, Any]
@@ -170,8 +167,6 @@ async def UserQuestion(
   query['filter_by'] = 'first_appearance_year:>-1'
   query.pop('filter_by')
 
-  # print(f'done: ===== {query}')
-
   query = json.dumps(query)
   questionResults = typesenseObject.AskQuestion(searchSchema, query, minHits, maxHits)
   # print(questionResults)
@@ -210,10 +205,10 @@ async def GenerateQuery(searchSchema: str, userQuestion: str):
 
   schemaFields = schema['fields']  # type: ignore
   # only need the field names and types for the query generation.
-  fieldsNames = []
+  fields = {}
   for field in schemaFields:
-    summarizedField = {f'{field["name"]}', f'{field["type"]}'}
-    fieldsNames.append(summarizedField)
+    summarizedField = {f'{field["name"]}': f'{field["type"]}'}
+    fields.update(summarizedField)
   prompt = f"""
 
     You are a query generator. Convert a user question into a valid Typesense search query JSON.
@@ -242,7 +237,7 @@ async def GenerateQuery(searchSchema: str, userQuestion: str):
     }}
 
     Schema fields:
-    {fieldsNames}
+    {fields}
 
     User question:
     {userQuestion}
@@ -312,7 +307,7 @@ def __SanitizeJson(content: str):
     # Return compact JSON string
     return [json.dumps(content, separators=(',', ':')), True]
   except Exception as e:
-    return [f'{e}', False]
+    return [e, False]
 
 
 def __MutateSchema(schema: str):
