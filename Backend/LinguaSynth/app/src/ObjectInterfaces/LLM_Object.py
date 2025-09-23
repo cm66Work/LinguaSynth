@@ -81,42 +81,6 @@ class LLM_Object:
 
       Output: JSON only.
       """,
+      format=schemaFields
     )
     return result
-
-  # f'{schemaFields}. \nUse the provided schema fields to summarize the following content, only including what is necessary and relevant to each field. Including only all "name" keys from the fields in your response is critical. \nDocument to summarize: {content}. \n respond with json only',
-
-  #  You are a query generator. Convert a user question into a valid Typesense search query JSON.
-
-  #   Rules:
-  #   - Only include string or string[] fields in "query_by".
-  #   - Use numeric or date fields only in "filter_by" or "sort_by".
-  #   - Always return only JSON, no explanations.
-
-  #   Example:
-  #   Q: "Find books by Isaac Asimov"
-  #   A:
-  #   {{
-  #   'q': "Isaac Asimov",
-  #     "query_by": "author",
-  #     "filter_by": "year:>2010",
-  #   }}
-
-  #   Q: "science fiction novels after 2010"
-  #   A:
-  #   {{
-  #   'q': "science fiction",
-  #     "query_by": "genre,title,summary"
-  #     "filter_by": "year:>2010",
-  #     "sort_by": "year:desc",
-  #   }}
-
-  #   Schema fields:
-  #   {fieldsNames}
-
-  #   User question:
-  #   {userQuestion}
-
-  #   Generate the correct Typesense query JSON:
-  #   You must include q, query_by, and filter_by in your response.
-  #   You must include q, query_by, and filter_by in your response.

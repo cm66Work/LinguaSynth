@@ -7,6 +7,7 @@ from Utils.ServerResponse import ServerResponse, ServerResponseObject
 @dataclass
 class LLMServerResponseObject(ServerResponseObject):
   Response: str
+  Streaming: bool = False
 
 
 class LLMServerResponse(ServerResponse):
@@ -57,7 +58,7 @@ class LLMManager:
       )
 
   # --- Generating answers ---
-  async def Generate(self, model: str, prompt='', think=False) -> LLMServerResponseObject:
+  async def Generate(self, model: str, prompt='', think=False, format={}) -> LLMServerResponseObject:
     """
     Generation request to the current running LLM.
 
@@ -81,19 +82,26 @@ class LLMManager:
       await self.PullModel(imageName=model)
 
     try:
-      result = self.client.generate(
-        model=model, prompt=prompt, keep_alive=30, think=think
-      )
+      result = ''
+      if len(format) <= 0:
+        result = self.client.generate(
+          model=model, prompt=prompt, think=think 
+        )
+      else:
+        result = self.client.generate(
+          model=model, prompt=prompt, think=think, format=format 
+        )
       return self.serverResponseUtil.GenerateServerResponse(
         True,
         'response generated',
         # extraData={'response': result['response']},
         response=result['response'],
+        extraData={'result': result},
         generateLog=False,
       )
     except ResponseError as e:
       return self.serverResponseUtil.GenerateServerResponse(
-        False, f'ERROR::LLMManager.Generate:: {e}'
+        False, f'ERROR::LLMManager.Generate:: {e} {type(format)} {format}'
       )
 
   def __ModelExists(self, modelName: str):
