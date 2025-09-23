@@ -1,5 +1,9 @@
 
-def ConvertToJsonSchema(pseudo_schema: dict) -> dict:
+import json
+import re
+
+
+def ConvertToJsonSchema(pseudo_schema: dict) -> str:
     """
     Convert a pseudo-schema dict with types like 'int64', 'string[]'
     into a valid JSON Schema (Draft-07 style).
@@ -32,4 +36,29 @@ def ConvertToJsonSchema(pseudo_schema: dict) -> dict:
             else:
                 raise ValueError(f"Unsupported type: {field_type}")
 
-    return schema
+    return json.dumps(schema)
+
+
+def SanitizeJson(content: str):
+  """
+  Extracts the first JSON object from text and normalizes
+  it into a single-line valid JSON string.
+  """
+  # Grab first {...} block
+  match = re.search(r'\{[\s\S]*\}', content)
+  if not match:
+    return ['', False]
+
+  content = match.group(0)
+  content = content.replace('\\n', '')
+  content = content.replace("'", '"')
+  print(content)
+  # Normalize schema (handles double-encoded JSON too)
+  try:
+    content = json.loads(
+      json.loads(content) if content.strip().startswith("'") else content
+    )
+    # Return compact JSON string
+    return [json.dumps(content, separators=(',', ':')), True]
+  except Exception as e:
+    return [e, False]

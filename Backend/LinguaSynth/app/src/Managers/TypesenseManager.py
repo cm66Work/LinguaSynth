@@ -160,7 +160,8 @@ class TypesenseManager:
     except Exception as e:
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
-        message=f'{e} documents uploaded Failed to index. {self.client.collections[collectionName].documents.export()}',
+        message=f'documents uploaded Failed to index. {e}',
+        errorType=ErrorTypes.Error
       )
 
   def NewQuery(self, collectionName: str, query, minHits=2, maxHits=20):

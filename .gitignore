@@ -8,11 +8,15 @@
 /Backend/Postgres/data/*
 /Backend/MinIO/data/*
 
+/External/Private
+/External/Private/*
+
 # virtual environments
 **.venv
 
 # pytest
 **/__pycache__
+**/__pycache__/*
 /Backend/LinguaSynth/.pytest_cache
 
 # Logs

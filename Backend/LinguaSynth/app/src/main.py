@@ -1,6 +1,8 @@
+from dataclasses import fields
 import json
-import re
+from pydoc import resolve
 from typing import Any, cast
+from urllib import response
 
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
@@ -9,7 +11,7 @@ from fastapi import FastAPI, UploadFile
 from ObjectInterfaces.LLM_Object import LLM_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
-from Utils import JsonUtils 
+from Utils import JsonUtils
 
 
 # --- Objects ---
@@ -48,29 +50,36 @@ async def UploadNewDocument(
       success=False, message=schemaResult.Message, extraData=schemaResult.Data
     )
 
+  schemaFields = json.loads(schemaResult.Data['schema'])['fields']
   # -- typesense document building
   # only need the field names and types for the query generation.
+  # response = schemaResult.Data['schema']['fields']
   fields = {}
-  for field in schemaResult.Data['schema']['fields']:
-    summarizedField = {f'{field["name"]}': f'{field["type"]}'}
-    fields.update(summarizedField)
-  fields = JsonUtils.ConvertToJsonSchema(fields) 
+  # --- this is the structure at this point.
+  # list [ dict [ str, str, str, str, ... ] ]
+  for field in schemaFields:
+    field_obj = {field['name']: field['type']}
+    fields.update(field_obj)
   # Summarize the uploaded document and format it to match typesense's document format.
   serverResponse.GenerateLogMessage(
     messageString='Generating summarized version of the document using the given schema.'
   )
-  summarizedContent = await llmObject.HandleContentSummarization(uploadedDocument, fields)
-    # Clean out any extra LLM generated text.
-  summarizedJson = __SanitizeJson(summarizedContent.Response)
+  jsonSchemaFields = JsonUtils.ConvertToJsonSchema(fields)
+  summarizedContent = await llmObject.HandleContentSummarization(
+    uploadedDocument, json.loads(jsonSchemaFields)
+  )
+  print(summarizedContent.Response)
+
+  # Clean out any extra LLM generated text.
+  summarizedJson = JsonUtils.SanitizeJson(summarizedContent.Response)
   generatedDocument = summarizedJson[0]
   message = generatedDocument
   success = summarizedJson[1]
-  
+
   if not success:
     return serverResponse.GenerateServerResponse(
       success=False, message=f'Failed to summarize uploaded content. {message}'
     )
-
 
   summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
   postgresResults = await __HandlePostgresIndexing(
@@ -114,6 +123,7 @@ async def UploadNewDocument(
       'postgresResponse': postgresResults,
     },
   )
+
 
 async def __HandleTypesenseIndexing(
   schemaName: str, content: dict[str, Any]
@@ -201,7 +211,7 @@ async def UserQuestion(
 
 
 async def GenerateQuery(searchSchema: str, userQuestion: str):
-  schema = typesenseObject.GetSchema(searchSchema)
+  schema = json.loads(typesenseObject.GetSchema(searchSchema))
 
   schemaFields = schema['fields']  # type: ignore
   # only need the field names and types for the query generation.
@@ -247,7 +257,7 @@ async def GenerateQuery(searchSchema: str, userQuestion: str):
     You must include q, query_by, and filter_by in your response.
   """
   result = await llmObject.Generate(prompt)
-  return __SanitizeJson(result.Response)
+  return JsonUtils.SanitizeJson(result.Response)
 
 
 # endregion
@@ -255,21 +265,30 @@ async def GenerateQuery(searchSchema: str, userQuestion: str):
 
 # region Schema
 @app.post('/generate-schema/')
-async def GenerateSchema(file: UploadFile) -> ServerResponseObject:  # pyright: ignore[reportGeneralTypeIssues]
-  # TODO:: Sanitize generated schema
+async def GenerateSchema(
+  schemaName: str, file: UploadFile, force: bool = False
+) -> ServerResponseObject:  # pyright: ignore[reportGeneralTypeIssues]
   content = str(await file.read())
-  result = cast(
-    ServerResponseObject, await llmObject.HandleSchemaGeneration(content=content)
-  )
-  if not result.Success:
+  result = await llmObject.HandleSchemaGeneration(schemaName=schemaName, content=content)
+  generatedCategories = JsonUtils.SanitizeJson(result.Response)
+  if not generatedCategories[1]:  # Sanitize did not work.
     return serverResponse.GenerateServerResponse(
       False,
       'ERROR::main.upload-file::Schema generation failed!',
-      extraData={'result': result},
+      extraData={'result': generatedCategories[0]},
     )
-  return serverResponse.GenerateServerResponse(
-    True, 'Schema generated.', extraData={'result': result}
-  )
+  try:
+    content = str(generatedCategories[0]).replace('\\', '')
+    schemaUploadResult = typesenseObject.ImportSchema(content, force)
+    if schemaUploadResult.Success:
+      return minioObject.UploadSchema(content)
+    return schemaUploadResult
+  except Exception as e:
+    return serverResponse.GenerateServerResponse(
+      success=False,
+      message='Failed to upload schema.',
+      extraData={'response': generatedCategories[0], 'exception': e},
+    )
 
 
 @app.post('/upload-schema/')
@@ -277,37 +296,12 @@ async def UploadCustomSchema(
   file: UploadFile, force: bool = False
 ) -> ServerResponseObject:
   content = str(await file.read())
-  content = __SanitizeJson(content)
+  content = JsonUtils.SanitizeJson(content)
   content = __MutateSchema(content[0])
   schemaUploadResult = typesenseObject.ImportSchema(content, force)
   if schemaUploadResult.Success:
     return minioObject.UploadSchema(content)
   return schemaUploadResult
-
-
-def __SanitizeJson(content: str):
-  """
-  Extracts the first JSON object from text and normalizes
-  it into a single-line valid JSON string.
-  """
-  # Grab first {...} block
-  match = re.search(r'\{[\s\S]*\}', content)
-  if not match:
-    return ['', False]
-
-  content = match.group(0)
-  content = content.replace('\\n', '')
-  content = content.replace("'", '"')
-  print(content)
-  # Normalize schema (handles double-encoded JSON too)
-  try:
-    content = json.loads(
-      json.loads(content) if content.strip().startswith("'") else content
-    )
-    # Return compact JSON string
-    return [json.dumps(content, separators=(',', ':')), True]
-  except Exception as e:
-    return [e, False]
 
 
 def __MutateSchema(schema: str):

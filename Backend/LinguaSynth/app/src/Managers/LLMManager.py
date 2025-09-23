@@ -92,8 +92,8 @@ class LLMManager:
           model=model, prompt=prompt, think=think, format=format 
         )
       return self.serverResponseUtil.GenerateServerResponse(
-        True,
-        'response generated',
+        success=True,
+        message='response generated',
         # extraData={'response': result['response']},
         response=result['response'],
         extraData={'result': result},
@@ -101,7 +101,7 @@ class LLMManager:
       )
     except ResponseError as e:
       return self.serverResponseUtil.GenerateServerResponse(
-        False, f'ERROR::LLMManager.Generate:: {e} {type(format)} {format}'
+        success=False, message=f'ERROR::LLMManager.Generate:: {e} {type(format)} {format}'
       )
 
   def __ModelExists(self, modelName: str):
