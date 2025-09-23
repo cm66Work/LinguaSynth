@@ -12,8 +12,6 @@
     { "name": "first_appearance_year", "type": "int32", "optional": true },
     { "name": "historical_notes", "type": "string", "optional": true },
     { "name": "cultural_significance", "type": "string", "optional": true },
-    { "name": "serving_styles", "type": "string[]", "optional": true },
-    { "name": "references", "type": "string[]", "optional": true },
-    { "name": "default_sorting_field", "type": "int32", "optional": true }
+    { "name": "serving_styles", "type": "string[]", "optional": true }
   ]
 }
