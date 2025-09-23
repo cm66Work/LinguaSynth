@@ -57,15 +57,15 @@ class Typesense_Object:
     # return only the fields, because everything else needs to remain the same.
     return self.client.GetLoadedSchemas()
 
-  def GetSchema(self, schemaName: str) -> dict[str, Any] | None:
+  def GetSchema(self, schemaName: str) -> str:
     """
     Returns the schema object if it exists.
     Returns None if if does not.
     """
     for schema in self.client.GetLoadedSchemas():
       if schema['name'] == schemaName:  # type: ignore
-        return schema  # type: ignore
-    return None
+        return json.dumps(schema)  # type: ignore
+    return '' 
 
   def GetSchemaFields(self, schemaName: str) -> list[Any]:
     for schema in self.GetAllSchemas():
