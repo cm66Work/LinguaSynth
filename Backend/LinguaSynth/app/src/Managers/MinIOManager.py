@@ -43,7 +43,10 @@ class MinIOManager:
     """
     returns true if the bucket exists
     """
-    return self.client.bucket_exists(name)
+    try:
+      return self.client.bucket_exists(name)
+    except Exception as e:
+      return False
 
   def GetAllBuckets(self):
     return self.client.list_buckets()
@@ -161,4 +164,5 @@ class MinIOManager:
     response = self.client.get_object(bucketName, fileName)
     content = response.read()
     response.close()
+    self.log.GenerateLogMessage('Success, contents downloaded')
     return content

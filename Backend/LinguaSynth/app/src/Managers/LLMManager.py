@@ -58,7 +58,9 @@ class LLMManager:
       )
 
   # --- Generating answers ---
-  async def Generate(self, model: str, prompt='', think=False, format={}) -> LLMServerResponseObject:
+  async def Generate(
+    self, model: str, prompt='', think=False, format={}
+  ) -> LLMServerResponseObject:
     """
     Generation request to the current running LLM.
 
@@ -73,7 +75,7 @@ class LLMManager:
       return self.serverResponseUtil.GenerateServerResponse(
         False, 'ERROR::LLMManager.Generate:: Prompt is empty.'
       )
-    if model == '':
+    if len(model) <= 0:
       return self.serverResponseUtil.GenerateServerResponse(
         False, 'ERROR::LLMManager.Generate:: LLM model name is empty.'
       )
@@ -84,12 +86,10 @@ class LLMManager:
     try:
       result = ''
       if len(format) <= 0:
-        result = self.client.generate(
-          model=model, prompt=prompt, think=think 
-        )
+        result = self.client.generate(model=model, prompt=prompt, think=think)
       else:
         result = self.client.generate(
-          model=model, prompt=prompt, think=think, format=format 
+          model=model, prompt=prompt, think=think, format=format
         )
       return self.serverResponseUtil.GenerateServerResponse(
         success=True,
