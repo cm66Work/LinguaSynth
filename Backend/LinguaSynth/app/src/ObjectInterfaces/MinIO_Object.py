@@ -27,6 +27,9 @@ class MinIO_Object:
         password = f.read()
     self.client = MinIOManager(username, password, address, port)
 
+  async def BucketExists(self, bucketName):
+    return self.client.BucketExists(bucketName)
+
   async def UploadNewFileToBucket(
     self,
     fileName: str,
@@ -67,9 +70,37 @@ class MinIO_Object:
   ) -> ServerResponseObject:
     return self.client.UploadFileContents(bucketName, fileName, content)
 
-  def UploadSchema(self, content: str):
+  def UploadSchema(self, content: str, schemaName: str):
     if not self.client.BucketExists(UPLOAD_SCHEMA_BUCKET_NAME):
       self.client.CreateBucket(UPLOAD_SCHEMA_BUCKET_NAME)
     return self.___UploadContentToTargetBucket(
-      UPLOAD_SCHEMA_BUCKET_NAME, SCHEMA_FILE_NAME, content
+      UPLOAD_SCHEMA_BUCKET_NAME, f'{schemaName}-{SCHEMA_FILE_NAME}', content
+    )
+
+  def UploadDocumentToStorageServer(
+    self, bucketName: str, content: str, documentName: str
+  ):
+    if not self.client.BucketExists(bucketName):
+      self.client.CreateBucket(bucketName)
+    return self.___UploadContentToTargetBucket(bucketName, f'{documentName}', content)
+
+  def GetObjectsInBucket(self, bucketName: str):
+    """Returns all documents inside the bucket if the bucket exists."""
+    return self.client.GetAllObjectsInBucket(bucketName)
+
+  def GetContentOfBucketObject(
+    self, bucketName: str, fileName: str
+  ) -> ServerResponseObject:
+    contentBytes = self.client.DownloadFileContentFromBucket(bucketName, fileName)
+
+    if len(contentBytes) <= 0:
+      return self.client.serverResponseUtil.GenerateServerResponse(
+        success=False,
+        message=f'failed to download content from file: {fileName}, in bucket: {bucketName}',
+      )
+
+    return self.client.serverResponseUtil.GenerateServerResponse(
+      success=True,
+      message=f'content downloaded from file: {fileName} in bucket: {bucketName}',
+      extraData={'content': contentBytes.decode('utf-8')},
     )

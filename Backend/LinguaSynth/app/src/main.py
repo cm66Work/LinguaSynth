@@ -1,8 +1,5 @@
-from dataclasses import fields
 import json
-from pydoc import resolve
-from typing import Any, cast
-from urllib import response
+from typing import Any
 
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
@@ -41,8 +38,6 @@ async def HealthCheck():
 async def UploadNewDocument(
   document: UploadFile, schemaName: str
 ) -> ServerResponseObject:
-  uploadedDocument = str(await document.read())
-
   # -- validations
   schemaResult = __HandleSchemaValidation(schema=schemaName)
   if not schemaResult.Success:
@@ -64,6 +59,8 @@ async def UploadNewDocument(
   serverResponse.GenerateLogMessage(
     messageString='Generating summarized version of the document using the given schema.'
   )
+  uploadedDocument = str(await document.read())
+  uploadedDocument = uploadedDocument.replace("'", '')
   jsonSchemaFields = JsonUtils.ConvertToJsonSchema(fields)
   summarizedContent = await llmObject.HandleContentSummarization(
     uploadedDocument, json.loads(jsonSchemaFields)
@@ -281,7 +278,7 @@ async def GenerateSchema(
     content = str(generatedCategories[0]).replace('\\', '')
     schemaUploadResult = typesenseObject.ImportSchema(content, force)
     if schemaUploadResult.Success:
-      return minioObject.UploadSchema(content)
+      return minioObject.UploadSchema(content, schemaName)
     return schemaUploadResult
   except Exception as e:
     return serverResponse.GenerateServerResponse(
@@ -293,14 +290,14 @@ async def GenerateSchema(
 
 @app.post('/upload-schema/')
 async def UploadCustomSchema(
-  file: UploadFile, force: bool = False
+  file: UploadFile, schemaName: str, force: bool = False
 ) -> ServerResponseObject:
   content = str(await file.read())
   content = JsonUtils.SanitizeJson(content)
   content = __MutateSchema(content[0])
   schemaUploadResult = typesenseObject.ImportSchema(content, force)
   if schemaUploadResult.Success:
-    return minioObject.UploadSchema(content)
+    return minioObject.UploadSchema(content, schemaName)
   return schemaUploadResult
 
 
@@ -311,6 +308,195 @@ def __MutateSchema(schema: str):
       return json.dumps(data, separators=(',', ':'))
   data['fields'].insert(0, {'name': 'databaseID', 'type': 'int64'})
   return json.dumps(data, separators=(',', ':'))
+
+
+# endregion
+
+
+# region document Uploading
+# Uploading documents to the server so that we can process them for later tasks.
+@app.post('/upload-document-original/')
+async def UploadDocumentOriginal(
+  documentCategory: str, file: UploadFile
+) -> ServerResponseObject:
+  # upload the document and store it in the database
+  content = (await file.read()).decode('utf-8')
+  result = await UploadDocument(
+    f'{documentCategory}-originals',
+    content,
+    fileName=file.filename if file.filename is not None else 'tempt.txt',
+  )
+  if not result.Success:
+    return result
+
+  return serverResponse.GenerateServerResponse(
+    success=True,
+    message=f'original document {file.filename} uploaded.',
+    extraData={'result': result},
+  )
+
+
+async def UploadDocument(
+  bucketName: str, content: str, fileName: str
+) -> ServerResponseObject:
+  """Uploads the document to bucket and stores its reference in the database"""
+  # Upload the file to the storage server.
+  result = minioObject.UploadDocumentToStorageServer(bucketName, content, fileName)
+  if not result.Success:
+    return result
+
+  # Upload the file name to our referencing database
+  result = await postgresObject.UploadOriginalDocument(
+    f'documentReference_{bucketName}', f'{bucketName}/{fileName}'
+  )
+  if not result.Success:
+    return result
+
+  # document upload complete
+  return serverResponse.GenerateServerResponse(
+    success=True,
+    message='Document Upload complete',
+  )
+
+
+async def UploadSummarizedDocument(
+  originalBucketName: str,
+  summarizedBucketName: str,
+  summarizedContent: str,
+  originalFileName: str,
+  summarizedFileName: str,
+) -> ServerResponseObject:
+  """Uploads the summarized document to bucket and stores the summarized and original reference in the database"""
+  # Upload the file to the storage server.
+  result = minioObject.UploadDocumentToStorageServer(
+    summarizedBucketName, summarizedContent, summarizedFileName
+  )
+  if not result.Success:
+    return result
+
+  # Upload the file name to our referencing database
+  result = await postgresObject.UploadSummarizedDocument(
+    f'summarizedDocumentReference_{summarizedBucketName}',
+    f'{originalBucketName}/{originalFileName}',
+    f'{summarizedBucketName}/{summarizedFileName}',
+  )
+  if not result.Success:
+    return result
+
+  # document upload complete
+  return serverResponse.GenerateServerResponse(
+    success=True,
+    message='Summarized document Upload complete',
+  )
+
+
+# endregion
+
+
+# region Document summarization and processing
+# Process all original documents to summarized formats.
+# is later used to indexing into Typesense.
+@app.post('/process-original-documents/')
+async def ProcessOriginalDocuments(
+  originalBucketRootName: str, resolution: int = 1
+) -> ServerResponseObject:
+  # summarize all documents in the target category,
+  # and save the results into a separate bucket.
+  # We do not need typesense to process entire documents for indexing and document generation.
+  # We need to reduce the amount of data that is bing processed by Typesense.
+  originalBucketName = f'{originalBucketRootName}-originals'
+  if not await minioObject.BucketExists(originalBucketName):
+    return serverResponse.GenerateServerResponse(
+      success=False,
+      message=f'No bucket with name: {originalBucketName}',
+      errorType=ErrorTypes.Error,
+      className=__name__,
+    )
+
+  uploadedSummarizedDocumentNames = []
+  # Get all original documents in the storage bucket.
+  for document in minioObject.GetObjectsInBucket(originalBucketName):
+    # For each document, generate summarized document
+    if document.object_name is None:
+      serverResponse.GenerateLogMessage(
+        messageString=f'Tried to process a document with no name from bucket: {originalBucketName}, skipping file.'
+      )
+      continue
+    result = minioObject.GetContentOfBucketObject(
+      originalBucketName, document.object_name
+    )
+    if not result.Success:
+      serverResponse.GenerateLogMessage(
+        messageString=f'Failed to get content from file: {document.object_name.split(".")[0]}, from bucket: {originalBucketName}, skipping file.'
+      )
+      continue
+    print('\n ----- New document')
+    summarizedDocumentContent = await SummarizeDocument(
+      content=result.Data['content'],
+      context=f'{originalBucketRootName} and {document.object_name}',
+      resolution=resolution,
+    )
+    if len(summarizedDocumentContent) <= 0:
+      serverResponse.GenerateLogMessage(
+        messageString=f'document: {document.object_name} summarized to nothing, skipping file.',
+        errorType=ErrorTypes.Warning,
+      )
+      continue
+    # Upload summarized document into their own bucket and store a reference in the database table.
+    # story both the original document path and the summarized document path.
+    summarizedDocumentName = f'{document.object_name.split(".")[0]}-summarized.txt'
+    summarizedBucketName = f'{originalBucketRootName}-summarized'
+    result = await UploadSummarizedDocument(
+      originalBucketName,
+      summarizedBucketName,
+      summarizedDocumentContent,
+      document.object_name,
+      summarizedDocumentName,
+    )
+    if not result.Success:
+      serverResponse.GenerateLogMessage(
+        messageString=f'failed to upload: {summarizedDocumentName} to bucket: {summarizedBucketName}, skipping file.'
+      )
+      continue
+    serverResponse.GenerateLogMessage(
+      messageString=f'Summarized document: {summarizedDocumentName} has been uploaded successfully.'
+    )
+    uploadedSummarizedDocumentNames.append(summarizedDocumentName)
+
+  return serverResponse.GenerateServerResponse(
+    success=len(uploadedSummarizedDocumentNames) > 0,
+    message=f'finished uploading {len(uploadedSummarizedDocumentNames)} summarized documents:',
+    extraData={'summarizedDocumentNames': uploadedSummarizedDocumentNames},
+  )
+
+
+async def SummarizeDocument(content: str, context: str, resolution: int) -> str:
+  """
+  Summarizes the given content's paragraphs content by the resolution
+  For example if a resolution of 2 is given, then each paragraph of the content will be summarized twice.
+
+  Args:
+      content (str): The content to be summarized.
+      resolution (int): The number of times the content gets summarized. Higher values result in smaller resulted document sizes but has higher data loss.
+  """
+  summarizedContent = ''
+  for paragraph in content.split('\n\n'):
+    if len(paragraph) <= 0:
+      continue
+    summarizedParagraph = await llmObject.GenerateV2(
+      f"""paragraph: {paragraph} \n summarize the paragraph into 75% of its original length using the context: {context}. Only reply with the summarized content and do not write anything else or respond to this prompt."""
+    )
+    if not summarizedParagraph.Success:
+      continue
+    summarizedContent = str().join(
+      [summarizedContent, '\n\n', summarizedParagraph.Response]
+    )
+  print(f'summarizedContent: {summarizedContent}')
+
+  resolution -= 1
+  if resolution > 0:
+    return await SummarizeDocument(summarizedContent, context, resolution)
+  return summarizedContent
 
 
 # endregion

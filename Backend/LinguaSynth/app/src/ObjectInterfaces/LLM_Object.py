@@ -5,7 +5,7 @@ from Utils import JsonUtils
 # from jsonschema import validate, ValidationError
 
 # --- Constants ---
-LLM_LIGHT_GENERATION_MODEL = 'gemma3:270m-it-bf16'  #'gemma3:1b-it-fp16'
+LLM_LIGHT_GENERATION_MODEL = 'gemma3:1b'  #'gemma3:1b-it-fp16'
 # LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
 LLM_HEAVY_GENERATION_MODEL = 'gemma3:12b'
 LLM_EXAMPLE_SCHEMA_FIELDS = {
@@ -72,7 +72,8 @@ class LLM_Object:
       Now generate the "fields" JSON for this document: {content}
 
 
-      Generate at least 10 "fields"
+      Generate at least 15 "fields"
+      Only create height level abstracts fields that describe what each part means
     """
     result = await self.client.Generate(
       model=LLM_HEAVY_GENERATION_MODEL, prompt=prompt, think=False
@@ -102,15 +103,31 @@ class LLM_Object:
       prompt=prompt,
       think=False,
     )
-    response = json.loads(JsonUtils.SanitizeJson(result.Response)[0])
+    sanitized, ok = JsonUtils.SanitizeJson(result.Response)
+    if not ok:
+      raise ValueError('SanitizeJson failed')
+    response = json.loads(sanitized)
 
     schema = {'name': schemaName, 'fields': []}
-    for name, ftype in response.items():
-      field_obj = {'name': name, 'type': ftype}
-      schema['fields'].append(field_obj)
+
+    if isinstance(response, dict):
+      # Dict form: { "field": "type" }
+      for name, ftype in response.items():
+        schema['fields'].append({'name': name, 'type': ftype})
+
+    elif isinstance(response, list):
+      # List form: [ {"field": ..., "type": ...}, ... ]
+      for item in response:
+        # Defensive: support both {"field":..,"type":..} and {"name":..,"type":..}
+        field_name = item.get('field') or item.get('name')
+        ftype = item.get('type', 'string')
+        schema['fields'].append({'name': field_name, 'type': ftype})
+
+    else:
+      raise ValueError(f'Unexpected response type: {type(response)}')
 
     schema['fields'].append({'name': 'documentID', 'type': 'int64'})
-    schema['fields'].append({'name': 'article_name', 'type': 'string'})
+
     self.client.serverResponseUtil.GenerateLogMessage(
       messageString='new schema generated'
     )
@@ -156,3 +173,8 @@ class LLM_Object:
     # }}
 
     # Output: JSON only.
+
+  async def GenerateV2(self, prompt: str) -> LLMServerResponseObject:
+    print('----------')
+    result = await self.client.Generate(model=LLM_LIGHT_GENERATION_MODEL, prompt=prompt)
+    return result
