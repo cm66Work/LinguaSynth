@@ -8,7 +8,7 @@ class ProcessUploadedDocuments:
     self.category = category
     self.progressBarCallback = progressBarCallback
 
-  def ProcessFiles(self):
+  def ProcessFiles(self, startTime):
     """Tells the server to start processing all new uploaded documents and streams back progress."""
     with requests.post(
       f'{self.serverAddress}/process-new-uploaded-documents/?bucketRootName={self.category}',
@@ -22,13 +22,13 @@ class ProcessUploadedDocuments:
         if line:
           try:
             data = json.loads(line.decode('utf-8'))
-            print('Stream update:', data)
+            # print('Stream update:', data)
 
             # Notify GUI for progress
             if self.progressBarCallback:
               currentProgress = data['Data'].get('processed_document_count', 0)
               totalDocumentsCount = data['Data'].get('document_count', 100)
-              self.progressBarCallback(currentProgress, totalDocumentsCount)
+              self.progressBarCallback(currentProgress, totalDocumentsCount, startTime)
           except json.JSONDecodeError:
             print('Invalid JSON chunk:', line)
 

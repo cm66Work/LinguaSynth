@@ -1,4 +1,5 @@
 import os
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import threading
@@ -11,6 +12,18 @@ root.title('TXT File Uploader')
 # Frames
 button_frame = tk.Frame(root)
 button_frame.grid(row=3, column=0, columnspan=3, pady=10)
+
+progressbar_frame = tk.Frame(root)
+progressbar_frame.grid(column=0, columnspan=3, pady=10)
+
+
+# Progress bar (hidden initially)
+progress = ttk.Progressbar(
+  progressbar_frame, orient='horizontal', mode='determinate', length=300
+)
+progress.grid(row=0, column=0, padx=10, pady=10)
+progressbar_label = tk.Label(progressbar_frame, text='Estimated time remaining: --:--')
+progressbar_label.grid(row=1, column=0, padx=10, pady=5)
 
 
 def browse_directory():
@@ -45,7 +58,7 @@ def _upload_files_thread():
     return
 
   # Show progress bar
-  progress.grid(row=4, column=0, columnspan=3, pady=10)
+  progressbar_frame.grid(row=4, column=0, columnspan=3, pady=10)
   progress['maximum'] = len(txt_files)
   progress['value'] = 0
 
@@ -63,7 +76,7 @@ def _upload_files_thread():
   uploaded, failed = uploader.upload_all()
 
   # Hide progress bar
-  progress.grid_forget()
+  progressbar_frame.grid_forget()
 
   result_msg = (
     f'Uploaded: {uploaded}\nFailed: {failed}'
@@ -91,26 +104,40 @@ def ProcessNewUploadedDocuments():
     return
 
   # Show progress bar
-  progress.grid(row=4, column=0, columnspan=3, pady=10)
+  progressbar_frame.grid(row=4, column=0, columnspan=3, pady=10)
   progress['maximum'] = 100
   progress['value'] = 0
 
-  def update_progress(value: int, max: int):
+  def update_progress(value: int, max: int, startTime):
+    value += 1
     progress['maximum'] = max
     progress['value'] = value
     root.update_idletasks()
 
+    # compute ETA
+    if value > 0:
+      elapsed = time.time() - startTime
+      rate = elapsed / value
+      remaining = rate * (max - value)
+
+      mins, secs = divmod(int(remaining), 60)
+
+      progressbar_label.config(
+        text=f'files processed: {value}/{max} | etr: {mins:02d}:{secs:02d}'
+      )
+    else:
+      progressbar_label.config(
+        text=f'files processed: {value}/{max} | etc: Calculating...'
+      )
+
   processor = ProcessUploadedDocuments.ProcessUploadedDocuments(
     server_address, category, update_progress
   )
-  result, statusCode = processor.ProcessFiles()
-  print('Final:', result, statusCode)
+  result, statusCode = processor.ProcessFiles(time.time())
+  # print('Final:', result, statusCode)
 
   # Hide progress bar when done
-  progress.grid_forget()
-
-  # Hide progress bar
-  progress.grid_forget()
+  progressbar_frame.grid_forget()
 
   messagebox.showinfo('Upload Result', result)
 
@@ -144,10 +171,6 @@ tk.Label(root, text='Document Category:').grid(
 )
 category_entry = tk.Entry(root, width=50)
 category_entry.grid(row=2, column=1, padx=5, pady=5)
-
-
-# Progress bar (hidden initially)
-progress = ttk.Progressbar(root, orient='horizontal', mode='determinate', length=400)
 
 
 root.mainloop()
