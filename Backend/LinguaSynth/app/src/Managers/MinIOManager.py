@@ -45,7 +45,7 @@ class MinIOManager:
     """
     try:
       return self.client.bucket_exists(name)
-    except Exception as e:
+    except Exception:
       return False
 
   def GetAllBuckets(self):
@@ -115,8 +115,11 @@ class MinIOManager:
     self.log.GenerateLogMessage(f'Deleting file: {fileName} from bucket: {bucketName}...')
     if not self.FileExistsInBucket(bucketName, fileName):
       return False
-    self.client.remove_object(bucketName, str(fileName))
-    return True
+    try:
+      self.client.remove_object(bucketName, str(fileName))
+      return True
+    except Exception:
+      return False
 
   # ------------- File Uploading
   def UploadFileContents(
