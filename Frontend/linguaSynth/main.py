@@ -10,6 +10,9 @@ root = tk.Tk()
 root.title('TXT File Uploader')
 
 # Frames
+fileUploadFrame = tk.Frame(root)
+fileUploadFrame.grid(row=0, column=0, columnspan=3, pady=10)
+
 button_frame = tk.Frame(root)
 button_frame.grid(row=3, column=0, columnspan=3, pady=10)
 
@@ -154,23 +157,49 @@ summarizationPasses.pack(side='left', padx=5)
 
 # endregion
 
-
-tk.Label(root, text='File Directory:').grid(row=0, column=0, sticky='w', padx=5, pady=5)
-dir_entry = tk.Entry(root, width=50)
+fileDirectory = tk.Frame(fileUploadFrame)
+fileDirectory.grid(row=0, column=0, columnspan=3, pady=5)
+tk.Label(fileDirectory, text='File Directory:').grid(
+  row=0, column=0, sticky='w', padx=0, pady=5
+)
+dir_entry = tk.Entry(fileDirectory, width=50)
 dir_entry.grid(row=0, column=1, padx=5, pady=5)
-tk.Button(root, text='Browse', command=browse_directory).grid(
+tk.Button(fileDirectory, text='Browse', command=browse_directory).grid(
   row=0, column=2, padx=5, pady=5
 )
 
-tk.Label(root, text='Server Address:').grid(row=1, column=0, sticky='w', padx=5, pady=5)
-server_entry = tk.Entry(root, width=50)
-server_entry.grid(row=1, column=1, padx=5, pady=5)
 
-tk.Label(root, text='Document Category:').grid(
-  row=2, column=0, sticky='w', padx=5, pady=5
+serverAddressFrame = tk.Frame(fileUploadFrame)
+serverAddressFrame.grid(row=1, column=0, columnspan=3, pady=5)
+tk.Label(serverAddressFrame, text='Server Address:').grid(
+  row=0, column=0, sticky='w', padx=5, pady=5
 )
-category_entry = tk.Entry(root, width=50)
-category_entry.grid(row=2, column=1, padx=5, pady=5)
+server_entry = tk.Entry(serverAddressFrame, width=15)
+server_entry.grid(row=0, column=1, padx=5, pady=5)
+tk.Label(serverAddressFrame, text='Document Category:').grid(
+  row=0, column=2, sticky='w', padx=5, pady=5
+)
+category_entry = tk.Entry(serverAddressFrame, width=15)
+category_entry.grid(row=0, column=3, padx=5, pady=5)
+
+
+# region Schema generation
+
+
+schemaGenerationFrame = tk.Frame(root)
+schemaGenerationFrame.grid(row=5)
+tk.Label(schemaGenerationFrame, text='Schema Generation ------------').grid(
+  row=0, column=0, sticky='w'
+)
+
+tk.Label(schemaGenerationFrame, text='Number of random files to use:').grid(
+  row=1, column=0, sticky='w', padx=5, pady=5
+)
+schemaNumberRandomFilesToUse = tk.Entry(schemaGenerationFrame, width=5)
+schemaNumberRandomFilesToUse.grid(row=1, column=2, padx=5, pady=5)
+tk.Button(schemaGenerationFrame, text='Generate', command=browse_directory).grid(
+  row=1, column=3, padx=5, pady=5
+)
 
 
 root.mainloop()
