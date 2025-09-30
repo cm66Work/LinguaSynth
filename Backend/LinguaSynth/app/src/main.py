@@ -34,92 +34,92 @@ async def HealthCheck():
 
 # region Document Uploading
 # --- File summarization ---
-@app.post('/uploadfile')
-async def UploadNewDocument(
-  document: UploadFile, schemaName: str
-) -> ServerResponseObject:
-  # -- validations
-  schemaResult = __HandleSchemaValidation(schema=schemaName)
-  if not schemaResult.Success:
-    return serverResponse.GenerateServerResponse(
-      success=False, message=schemaResult.Message, extraData=schemaResult.Data
-    )
+# @app.post('/uploadfile')
+# async def UploadNewDocument(
+#   document: UploadFile, schemaName: str
+# ) -> ServerResponseObject:
+#   # -- validations
+#   schemaResult = __HandleSchemaValidation(schema=schemaName)
+#   if not schemaResult.Success:
+#     return serverResponse.GenerateServerResponse(
+#       success=False, message=schemaResult.Message, extraData=schemaResult.Data
+#     )
 
-  schemaFields = json.loads(schemaResult.Data['schema'])['fields']
-  # -- typesense document building
-  # only need the field names and types for the query generation.
-  # response = schemaResult.Data['schema']['fields']
-  fields = {}
-  # --- this is the structure at this point.
-  # list [ dict [ str, str, str, str, ... ] ]
-  for field in schemaFields:
-    field_obj = {field['name']: field['type']}
-    fields.update(field_obj)
-  # Summarize the uploaded document and format it to match typesense's document format.
-  serverResponse.GenerateLogMessage(
-    messageString='Generating summarized version of the document using the given schema.'
-  )
-  uploadedDocument = str(await document.read())
-  uploadedDocument = uploadedDocument.replace("'", '')
-  jsonSchemaFields = JsonUtils.ConvertToJsonSchema(fields)
-  summarizedContent = await llmObject.HandleContentSummarization(
-    uploadedDocument, json.loads(jsonSchemaFields)
-  )
-  print(summarizedContent.Response)
+#   schemaFields = json.loads(schemaResult.Data['schema'])['fields']
+#   # -- typesense document building
+#   # only need the field names and types for the query generation.
+#   # response = schemaResult.Data['schema']['fields']
+#   fields = {}
+#   # --- this is the structure at this point.
+#   # list [ dict [ str, str, str, str, ... ] ]
+#   for field in schemaFields:
+#     field_obj = {field['name']: field['type']}
+#     fields.update(field_obj)
+#   # Summarize the uploaded document and format it to match typesense's document format.
+#   serverResponse.GenerateLogMessage(
+#     messageString='Generating summarized version of the document using the given schema.'
+#   )
+#   uploadedDocument = str(await document.read())
+#   uploadedDocument = uploadedDocument.replace("'", '')
+#   jsonSchemaFields = JsonUtils.ConvertToJsonSchema(fields)
+#   summarizedContent = await llmObject.HandleContentSummarization(
+#     uploadedDocument, json.loads(jsonSchemaFields)
+#   )
+#   print(summarizedContent.Response)
 
-  # Clean out any extra LLM generated text.
-  summarizedJson = JsonUtils.SanitizeJson(summarizedContent.Response)
-  generatedDocument = summarizedJson[0]
-  message = generatedDocument
-  success = summarizedJson[1]
+#   # Clean out any extra LLM generated text.
+#   summarizedJson = JsonUtils.SanitizeJson(summarizedContent.Response)
+#   generatedDocument = summarizedJson[0]
+#   message = generatedDocument
+#   success = summarizedJson[1]
 
-  if not success:
-    return serverResponse.GenerateServerResponse(
-      success=False, message=f'Failed to summarize uploaded content. {message}'
-    )
+#   if not success:
+#     return serverResponse.GenerateServerResponse(
+#       success=False, message=f'Failed to summarize uploaded content. {message}'
+#     )
 
-  summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
-  postgresResults = await __HandlePostgresIndexing(
-    str(document.filename), summarizedDocumentName
-  )
-  if not postgresResults.Success:
-    return postgresResults
+#   summarizedDocumentName = f'{str(document.filename).split(".")[0]}-summarized.{str(document.filename).split(".")[1]}'
+#   postgresResults = await __HandlePostgresIndexing(
+#     str(document.filename), summarizedDocumentName
+#   )
+#   if not postgresResults.Success:
+#     return postgresResults
 
-  # Update the database document ID number.
-  generatedDocument = json.loads(generatedDocument)
-  generatedDocument['databaseID'] = int(
-    postgresResults.Data['insertedRow'][0]
-  )  # 0 is the primary key 'id'
-  # generatedDocument = json.dumps(generatedDocument)
+#   # Update the database document ID number.
+#   generatedDocument = json.loads(generatedDocument)
+#   generatedDocument['databaseID'] = int(
+#     postgresResults.Data['insertedRow'][0]
+#   )  # 0 is the primary key 'id'
+#   # generatedDocument = json.dumps(generatedDocument)
 
-  # Uploading of the document to MinIO
-  serverResponse.GenerateLogMessage(messageString='Uploading files to minio server')
-  uploadResults = await minioObject.UploadNewFileToBucket(
-    fileName=str(document.filename),
-    summarizedFilename=summarizedDocumentName,
-    originalContent=uploadedDocument,
-    summarizedContent=str(generatedDocument),
-  )
-  if not uploadResults.Data['summarizedFile'].Success:
-    return serverResponse.GenerateServerResponse(
-      success=False,
-      message='APIs-UploadFile:: Failed to upload file to Minio.',
-      errorType=ErrorTypes.Error,
-    )
+#   # Uploading of the document to MinIO
+#   serverResponse.GenerateLogMessage(messageString='Uploading files to minio server')
+#   uploadResults = await minioObject.UploadNewFileToBucket(
+#     fileName=str(document.filename),
+#     summarizedFilename=summarizedDocumentName,
+#     originalContent=uploadedDocument,
+#     summarizedContent=str(generatedDocument),
+#   )
+#   if not uploadResults.Data['summarizedFile'].Success:
+#     return serverResponse.GenerateServerResponse(
+#       success=False,
+#       message='APIs-UploadFile:: Failed to upload file to Minio.',
+#       errorType=ErrorTypes.Error,
+#     )
 
-  # index the file into typesense.
-  typesenseResponse = await __HandleTypesenseIndexing(schemaName, generatedDocument)
-  if not typesenseResponse.Success:
-    return typesenseResponse
+#   # index the file into typesense.
+#   typesenseResponse = await __HandleTypesenseIndexing(schemaName, generatedDocument)
+#   if not typesenseResponse.Success:
+#     return typesenseResponse
 
-  return serverResponse.GenerateServerResponse(
-    success=True,
-    message='Upload and summarization completed!',
-    extraData={
-      'typesenseResponse': typesenseResponse,
-      'postgresResponse': postgresResults,
-    },
-  )
+#   return serverResponse.GenerateServerResponse(
+#     success=True,
+#     message='Upload and summarization completed!',
+#     extraData={
+#       'typesenseResponse': typesenseResponse,
+#       'postgresResponse': postgresResults,
+#     },
+#   )
 
 
 async def __HandleTypesenseIndexing(
@@ -315,23 +315,22 @@ def __MutateSchema(schema: str):
 
 # region document Uploading
 # Uploading documents to the server so that we can process them for later tasks.
-@app.post('/upload-document-original/')
-async def UploadDocumentOriginal(
+@app.post('/upload-document/')
+async def UploadNewDocument(
   documentCategory: str, file: UploadFile
 ) -> ServerResponseObject:
-  # upload the document and store it in the database
+  """Uploads the document to the storage location for new documents, used before processing"""
   content = (await file.read()).decode('utf-8')
-  result = await UploadDocument(
-    f'{documentCategory}-originals',
-    content,
-    fileName=file.filename if file.filename is not None else 'tempt.txt',
+  documentName = file.filename if file.filename is not None else 'tempt.txt'
+  result = minioObject.UploadDocumentToStorageServer(
+    bucketName=f'{documentCategory}-new', content=content, documentName=documentName
   )
   if not result.Success:
     return result
 
   return serverResponse.GenerateServerResponse(
     success=True,
-    message=f'original document {file.filename} uploaded.',
+    message=f'new document: {file.filename} uploaded.',
     extraData={'result': result},
   )
 
