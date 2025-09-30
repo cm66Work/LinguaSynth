@@ -98,6 +98,15 @@ class MinIOManager:
     """
     return self.client.list_objects(bucketName)
 
+  def GetObjectCountInBucket(self, bucketName) -> int:
+    """Returns the number of objects inside the given bucket"""
+
+    return (
+      0
+      if not self.BucketExists(bucketName)
+      else sum(1 for _ in self.GetAllObjectsInBucket(bucketName))
+    )
+
   def DeleteFileFromBucket(self, bucketName, fileName):
     """
     Deletes the file from the bucket if the bucket and the file exist.
