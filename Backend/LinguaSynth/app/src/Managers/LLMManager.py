@@ -6,7 +6,7 @@ from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 @dataclass
 class LLMServerResponseObject(ServerResponseObject):
-  Response: str
+  Response: str = ''
   Streaming: bool = False
 
 
