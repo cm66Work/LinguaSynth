@@ -1,7 +1,16 @@
 import os
 import tkinter as tk
-from tkinter import filedialog, messagebox
-import requests
+from tkinter import filedialog, messagebox, ttk
+import threading
+from ButtonActions import UploadFile, ProcessUploadedDocuments
+
+# GUI setup
+root = tk.Tk()
+root.title('TXT File Uploader')
+
+# Frames
+button_frame = tk.Frame(root)
+button_frame.grid(row=3, column=0, columnspan=3, pady=10)
 
 
 def browse_directory():
@@ -11,12 +20,19 @@ def browse_directory():
     dir_entry.insert(0, directory)
 
 
+# region Upload files
 def upload_files():
+  # Run upload in a background thread so GUI stays responsive
+  threading.Thread(target=_upload_files_thread, daemon=True).start()
+
+
+def _upload_files_thread():
   directory = dir_entry.get().strip()
   server_address = server_entry.get().strip()
+  category = category_entry.get().strip()
 
-  if not directory or not server_address:
-    messagebox.showerror('Error', 'Both fields are required!')
+  if not directory or not server_address or not category:
+    messagebox.showerror('Error', 'All fields are required!')
     return
 
   if not os.path.isdir(directory):
@@ -28,21 +44,26 @@ def upload_files():
     messagebox.showinfo('Info', 'No .txt files found in directory.')
     return
 
-  uploaded = []
-  failed = []
+  # Show progress bar
+  progress.grid(row=4, column=0, columnspan=3, pady=10)
+  progress['maximum'] = len(txt_files)
+  progress['value'] = 0
 
-  for file in txt_files:
-    filepath = os.path.join(directory, file)
-    try:
-      with open(filepath, 'rb') as f:
-        files = {'file': (file, f, 'text/plain')}
-        response = requests.post(f'{server_address}/upload', files=files)
-        if response.status_code == 200:
-          uploaded.append(file)
-        else:
-          failed.append((file, response.status_code))
-    except Exception as e:
-      failed.append((file, str(e)))
+  def update_progress():
+    progress.step(1)
+    root.update_idletasks()
+
+  # Use the uploader class
+  uploader = UploadFile.FileUploader(
+    directory=directory,
+    server_address=server_address,
+    category=category,
+    progress_callback=update_progress,
+  )
+  uploaded, failed = uploader.upload_all()
+
+  # Hide progress bar
+  progress.grid_forget()
 
   result_msg = (
     f'Uploaded: {uploaded}\nFailed: {failed}'
@@ -52,9 +73,60 @@ def upload_files():
   messagebox.showinfo('Upload Result', result_msg)
 
 
-# GUI setup
-root = tk.Tk()
-root.title('TXT File Uploader')
+# GUI
+
+tk.Button(button_frame, text='Upload Files', command=upload_files).pack(
+  side='left', padx=5
+)
+# endregion
+
+
+# region Processed new uploaded document
+def ProcessNewUploadedDocuments():
+  server_address = server_entry.get().strip()
+  category = category_entry.get().strip()
+
+  if not server_address or not category:
+    messagebox.showerror('Error', 'server address and category are required!')
+    return
+
+  # Show progress bar
+  progress.grid(row=4, column=0, columnspan=3, pady=10)
+  progress['maximum'] = 100
+  progress['value'] = 0
+
+  def update_progress(value: int, max: int):
+    progress['maximum'] = max
+    progress['value'] = value
+    root.update_idletasks()
+
+  processor = ProcessUploadedDocuments.ProcessUploadedDocuments(
+    server_address, category, update_progress
+  )
+  result, statusCode = processor.ProcessFiles()
+  print('Final:', result, statusCode)
+
+  # Hide progress bar when done
+  progress.grid_forget()
+
+  # Hide progress bar
+  progress.grid_forget()
+
+  messagebox.showinfo('Upload Result', result)
+
+
+# --- GUI
+
+tk.Button(
+  button_frame, text='Process Documents', command=ProcessNewUploadedDocuments
+).pack(side='right', padx=5)
+
+tk.Label(button_frame, text='Summarization Passes:').pack(side='left', padx=5)
+summarizationPasses = tk.Entry(button_frame, width=5)
+summarizationPasses.pack(side='left', padx=5)
+
+# endregion
+
 
 tk.Label(root, text='File Directory:').grid(row=0, column=0, sticky='w', padx=5, pady=5)
 dir_entry = tk.Entry(root, width=50)
@@ -67,8 +139,15 @@ tk.Label(root, text='Server Address:').grid(row=1, column=0, sticky='w', padx=5,
 server_entry = tk.Entry(root, width=50)
 server_entry.grid(row=1, column=1, padx=5, pady=5)
 
-tk.Button(root, text='Upload Files', command=upload_files).grid(
-  row=2, column=0, columnspan=3, pady=10
+tk.Label(root, text='Document Category:').grid(
+  row=2, column=0, sticky='w', padx=5, pady=5
 )
+category_entry = tk.Entry(root, width=50)
+category_entry.grid(row=2, column=1, padx=5, pady=5)
+
+
+# Progress bar (hidden initially)
+progress = ttk.Progressbar(root, orient='horizontal', mode='determinate', length=400)
+
 
 root.mainloop()
