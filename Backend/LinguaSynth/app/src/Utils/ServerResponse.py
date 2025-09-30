@@ -10,6 +10,7 @@ class ServerResponseObject:
   Success: bool
   Message: str
   Data: dict
+  Finished: bool = False
 
 
 class ServerResponse(LogUtil):
@@ -24,6 +25,7 @@ class ServerResponse(LogUtil):
     errorType: ErrorTypes = ErrorTypes.Ok,
     extraData: dict = {},
     generateLog=True,
+    finished=False,
   ):
     """
     Private helper function to keep return message code DRY.
@@ -39,4 +41,6 @@ class ServerResponse(LogUtil):
     """
     if generateLog or len(message) > 0:
       self.GenerateLogMessage(message, className=className, errorType=errorType)
-    return ServerResponseObject(Success=success, Message=message, Data=extraData)
+    return ServerResponseObject(
+      Success=success, Message=message, Data=extraData, Finished=finished
+    )
