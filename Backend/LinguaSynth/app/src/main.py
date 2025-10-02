@@ -260,60 +260,6 @@ async def GenerateQuery(searchSchema: str, userQuestion: str):
 # endregion
 
 
-# region Schema
-@app.post('/generate-schema/')
-async def GenerateSchema(
-  schemaName: str, file: UploadFile, force: bool = False
-) -> ServerResponseObject:  # pyright: ignore[reportGeneralTypeIssues]
-  content = str(await file.read())
-  result = await llmObject.HandleSchemaGeneration(schemaName=schemaName, content=content)
-  generatedCategories = JsonUtils.SanitizeJson(result.Response)
-  if not generatedCategories[1]:  # Sanitize did not work.
-    return serverResponse.GenerateServerResponse(
-      False,
-      'ERROR::main.upload-file::Schema generation failed!',
-      extraData={'result': generatedCategories[0]},
-    )
-  try:
-    content = str(generatedCategories[0]).replace('\\', '')
-    schemaUploadResult = typesenseObject.ImportSchema(content, force)
-    if schemaUploadResult.Success:
-      return minioObject.UploadSchema(content, schemaName)
-    return schemaUploadResult
-  except Exception as e:
-    return serverResponse.GenerateServerResponse(
-      success=False,
-      message='Failed to upload schema.',
-      extraData={'response': generatedCategories[0], 'exception': e},
-    )
-
-
-@app.post('/upload-schema/')
-async def UploadCustomSchema(
-  file: UploadFile, schemaName: str, force: bool = False
-) -> ServerResponseObject:
-  content = str(await file.read())
-  content = JsonUtils.SanitizeJson(content)
-  content = __MutateSchema(content[0])
-  schemaUploadResult = typesenseObject.ImportSchema(content, force)
-  if schemaUploadResult.Success:
-    return minioObject.UploadSchema(content, schemaName)
-  return schemaUploadResult
-
-
-def __MutateSchema(schema: str):
-  data: dict = json.loads(schema)
-  for field in data['fields']:
-    if field['name'] == 'databaseID':
-      return json.dumps(data, separators=(',', ':'))
-  data['fields'].insert(0, {'name': 'databaseID', 'type': 'int64'})
-  return json.dumps(data, separators=(',', ':'))
-
-
-# endregion
-
-
-# region document Uploading
 # Uploading documents to the server so that we can process them for later tasks.
 @app.post('/upload-document/')
 async def UploadNewDocument(documentCategory: str, file: UploadFile):
