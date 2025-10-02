@@ -316,76 +316,9 @@ def __MutateSchema(schema: str):
 # region document Uploading
 # Uploading documents to the server so that we can process them for later tasks.
 @app.post('/upload-document/')
-async def UploadNewDocument(
-  documentCategory: str, file: UploadFile
-) -> ServerResponseObject:
-  """Uploads the document to the storage location for new documents, used before processing"""
-  content = (await file.read()).decode('utf-8')
-  documentName = file.filename if file.filename is not None else 'tempt.txt'
-  result = minioObject.UploadDocumentToStorageServer(
-    bucketName=f'{documentCategory}-new', content=content, documentName=documentName
-  )
-  if not result.Success:
-    return result
-
-  return serverResponse.GenerateServerResponse(
-    success=True,
-    message=f'new document: {file.filename} uploaded.',
-    extraData={'result': result},
-  )
-
-
-async def UploadDocument(
-  bucketName: str, content: str, fileName: str
-) -> ServerResponseObject:
-  """Uploads the document to bucket and stores its reference in the database"""
-  # Upload the file to the storage server.
-  result = minioObject.UploadDocumentToStorageServer(bucketName, content, fileName)
-  if not result.Success:
-    return result
-
-  # Upload the file name to our referencing database
-  result = await postgresObject.UploadOriginalDocument(
-    f'documentReference_{bucketName}', f'{bucketName}/{fileName}'
-  )
-  if not result.Success:
-    return result
-
-  # document upload complete
-  return serverResponse.GenerateServerResponse(
-    success=True,
-    message='Document Upload complete',
-  )
-
-
-async def UploadSummarizedDocument(
-  originalBucketName: str,
-  summarizedBucketName: str,
-  summarizedContent: str,
-  originalFileName: str,
-  summarizedFileName: str,
-) -> ServerResponseObject:
-  """Uploads the summarized document to bucket and stores the summarized and original reference in the database"""
-  # Upload the file to the storage server.
-  result = minioObject.UploadDocumentToStorageServer(
-    summarizedBucketName, summarizedContent, summarizedFileName
-  )
-  if not result.Success:
-    return result
-
-  # Upload the file name to our referencing database
-  result = await postgresObject.UploadSummarizedDocument(
-    f'summarizedDocumentReference_{summarizedBucketName}',
-    f'{originalBucketName}/{originalFileName}',
-    f'{summarizedBucketName}/{summarizedFileName}',
-  )
-  if not result.Success:
-    return result
-
-  # document upload complete
-  return serverResponse.GenerateServerResponse(
-    success=True,
-    message='Summarized document Upload complete',
+async def UploadNewDocument(documentCategory: str, file: UploadFile):
+  return APIs.UploadNewDocument.UploadNewDocument(
+    documentCategory, file, minioObject, serverResponse
   )
 
 
