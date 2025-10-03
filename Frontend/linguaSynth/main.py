@@ -1,6 +1,9 @@
 import tkinter as tk
 from tkinter import filedialog, Frame
 
+from Utils.CustomTK import TextProgressBar
+from Panels.FileUploadPanel import FileUploadPanel
+
 
 class TKWindow:
   def __init__(self, root: tk.Tk, width: int = 1200, height: int = 600):
@@ -113,6 +116,19 @@ class TKWindow:
     # endregion
 
     # region progressbar
+    # use before calling Frame.winfo_width()
+    self.root.update_idletasks()
+    self.progressbar = TextProgressBar(self.progressbarFrame, width=600, height=15)
+    self.progressbar.grid(row=3, column=0)
+    # endregion
+
+    # regions Panels
+    self.fileUploadPanel = FileUploadPanel(
+      rootDirectory=self.fileDirectory,
+      serverAddress=self.serverAddress,
+      categoryEntry=self.schemaCategoryName,
+      progressbar=self.progressbar,
+    )
     # endregion
 
   def start(self):
@@ -125,7 +141,7 @@ class TKWindow:
       self.fileDirectory.insert(0, directory)
 
   def UploadFiles(self):
-    pass
+    self.fileUploadPanel.upload_files()
 
   def ProcessDocuments(self):
     pass

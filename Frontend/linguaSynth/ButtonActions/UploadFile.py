@@ -6,7 +6,13 @@ import concurrent.futures
 class FileUploader:
   """Handles uploading TXT files to the server."""
 
-  def __init__(self, directory, server_address, category, progress_callback=None):
+  def __init__(
+    self,
+    directory,
+    server_address,
+    category,
+    progress_callback=None,
+  ):
     self.directory = directory
     self.server_address = server_address
     self.category = category
@@ -49,6 +55,6 @@ class FileUploader:
 
         # Notify GUI about progress
         if self.progress_callback:
-          self.progress_callback()
+          self.progress_callback((len(uploaded) + len(failed)), len(txt_files))
 
     return uploaded, failed
