@@ -3,6 +3,7 @@ from tkinter import filedialog, Frame
 
 from Utils.CustomTK import TextProgressBar
 from Panels.FileUploadPanel import FileUploadPanel
+from Panels.SchemaGenerationPanel import SchemaGenerationPanel
 
 
 class TKWindow:
@@ -123,12 +124,6 @@ class TKWindow:
     # endregion
 
     # regions Panels
-    self.fileUploadPanel = FileUploadPanel(
-      rootDirectory=self.fileDirectory,
-      serverAddress=self.serverAddress,
-      categoryEntry=self.schemaCategoryName,
-      progressbar=self.progressbar,
-    )
     # endregion
 
   def start(self):
@@ -141,13 +136,26 @@ class TKWindow:
       self.fileDirectory.insert(0, directory)
 
   def UploadFiles(self):
-    self.fileUploadPanel.upload_files()
+    self.fileUploadPanel = FileUploadPanel(
+      rootDirectory=self.fileDirectory,
+      serverAddress=self.serverAddress,
+      categoryName=self.schemaCategoryName,
+      progressbar=self.progressbar,
+    )
+    self.fileUploadPanel.UploadFiles()
 
   def ProcessDocuments(self):
     pass
 
   def GenerateSchema(self):
-    pass
+    self.schemaGenerationPanel = SchemaGenerationPanel(
+      sampleSize=self.sampleSize,
+      resolution=self.resolution,
+      serverAddress=self.serverAddress,
+      categoryName=self.schemaCategoryName,
+      progressbar=self.progressbar,
+    )
+    self.schemaGenerationPanel.GenerateSchema()
 
   def SendQuestion(self):
     pass
@@ -270,72 +278,6 @@ if __name__ == '__main__':
 # )
 # category_entry = tk.Entry(serverAddressFrame, width=15)
 # category_entry.grid(row=0, column=3, padx=5, pady=5)
-
-
-# # region Schema generation
-# def GenerateSchema():
-#   serverAddress = server_entry.get().strip()
-#   category = category_entry.get().strip()
-
-#   if not serverAddress or not category:
-#     messagebox.showerror('Error', 'server address and category are required!')
-#     return
-
-#   # Show progress bar
-#   progressbar_frame.grid(row=4, column=0, columnspan=3, pady=10)
-#   progress['maximum'] = 100
-#   progress['value'] = 0
-
-#   def update_progress(
-#     totalDocuments,
-#     processedDocuments,
-#     totalSchemaTags,
-#     processedSchemaTags,
-#     schemaJsonString,
-#     responseMessage,
-#     startTime,
-#   ):
-#     documentProcessedProgress['maximum'] = totalDocuments
-#     documentProcessedProgress['value'] = processedDocuments
-#     root.update_idletasks()
-
-#     # compute ETA
-#     if processedDocuments > 0:
-#       elapsed = time.time() - startTime
-#       rate = elapsed / processedDocuments
-#       remaining = rate * (totalDocuments - processedDocuments)
-
-#       mins, secs = divmod(int(remaining), 60)
-
-#       progressbar_label.config(text=f'{responseMessage} | etr: {mins:02d}:{secs:02d}')
-#     else:
-#       progressbar_label.config(text=f'{responseMessage} | etc: Calculating...')
-
-#     if processedSchemaTags > 0:
-#       elapsed = time.time() - startTime
-#       rate = elapsed / processedSchemaTags
-#       remaining = rate * (totalSchemaTags - processedSchemaTags)
-
-#       mins, secs = divmod(int(remaining), 60)
-
-#       progressbar_label.config(text=f'{responseMessage} | etr: {mins:02d}:{secs:02d}')
-#     else:
-#       progressbar_label.config(text=f'{responseMessage} | etc: Calculating...')
-
-#   processor = ProcessSchemaGeneration.ProcessSchemaGeneration(
-#     serverAddress,
-#     category,
-#     schemaSampleSize.get().strip(),
-#     schemaResolution.get().strip(),
-#     progressBarCallback=update_progress,
-#   )
-#   result, schemaJsonString = processor.GenerateSchema(time.time())
-#   # print('Final:', result, statusCode)
-
-#   # Hide progress bar when done
-#   # schemaProgressbarFrame.grid_forget()
-
-#   messagebox.showinfo('Upload Result', str(schemaJsonString))
 
 
 # schemaGenerationFrame = tk.Frame(root)

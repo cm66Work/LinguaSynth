@@ -1,55 +1,47 @@
-import math
 import os
 from tkinter import messagebox
 import threading
 
 from ButtonActions import UploadFile
+from Panels.Panel import Panel
 from Utils.CustomTK import TextProgressBar
 
 
-class FileUploadPanel:
+class FileUploadPanel(Panel):
   def __init__(
-    self, rootDirectory, serverAddress, categoryEntry, progressbar: TextProgressBar
+    self, rootDirectory, serverAddress, categoryName, progressbar: TextProgressBar
   ):
-    self.rootDirectory = rootDirectory
-    self.serverAddress = serverAddress
-    self.categoryEntry = categoryEntry
-    self.progressbar = progressbar
+    super().__init__(serverAddress, categoryName, progressbar)
+    self.rootDirectory = rootDirectory.get().strip()
 
-  def upload_files(self):
+  def UploadFiles(self):
     # Run upload in a background thread so GUI stays responsive
     threading.Thread(target=self.__UploadFileThread, daemon=True).start()
 
   def __UploadFileThread(self):
-    directory = self.rootDirectory.get().strip()
-    server_address = self.serverAddress.get().strip()
-    category = self.categoryEntry.get().strip()
+    directory = self.rootDirectory
+    serverAddress = self.serverAddress
+    category = self.categoryName
 
-    if not directory or not server_address or not category:
-      messagebox.showerror('Error', 'All fields are required!')
+    if not directory or not serverAddress or not category:
+      self.CreateMessageBox('All fields are required!', self.ErrorType.Error)
       return
 
     if not os.path.isdir(directory):
-      messagebox.showerror('Error', f'{directory} is not a valid directory')
+      self.CreateMessageBox(f'{directory} is not a valid directory', self.ErrorType.Error)
       return
 
     txt_files = [f for f in os.listdir(directory) if f.endswith('.txt')]
     if not txt_files:
-      messagebox.showinfo('Info', 'No .txt files found in directory.')
+      self.CreateMessageBox('No .txt files found in directory.', self.ErrorType.Info)
       return
-
-    # Show progress bar
-
-    def update_progress(current, total):
-      percentage = math.ceil((current / total) * 100)
-      self.progressbar.SetProgress(percentage)
 
     # Use the uploader class
     uploader = UploadFile.FileUploader(
       directory=directory,
-      server_address=server_address,
+      server_address=serverAddress,
       category=category,
-      progress_callback=update_progress,
+      progress_callback=self.UpdateProgressbar,
     )
     uploaded, failed = uploader.upload_all()
 
