@@ -4,6 +4,7 @@ from Managers.MinIOManager import (
 )
 from Utils.ServerResponse import ServerResponseObject
 
+
 UPLOAD_ORIGINAL_BUCKET_NAME = 'original'
 UPLOAD_SUMMARIZED_BUCKET_NAME = 'summarized'
 UPLOAD_SCHEMA_BUCKET_NAME = 'schema'
@@ -30,41 +31,6 @@ class MinIO_Object:
   async def BucketExists(self, bucketName):
     return self.client.BucketExists(bucketName)
 
-  async def UploadNewFileToBucket(
-    self,
-    fileName: str,
-    summarizedFilename: str,
-    originalContent: str,
-    summarizedContent: str,
-  ) -> ServerResponseObject:
-    """
-    Saves two copies of the same file, one summarized and one original to
-    the minio bucket.
-
-    Args:
-        fileName (str): The name of the original file.
-        originalContent (str): The original content of the file.
-        summarizedContent (str): The summarized version of the original content.
-    Returns:
-    """
-    if not self.client.BucketExists(UPLOAD_ORIGINAL_BUCKET_NAME):
-      self.client.CreateBucket(UPLOAD_ORIGINAL_BUCKET_NAME)
-    originalResult = self.___UploadContentToTargetBucket(
-      UPLOAD_ORIGINAL_BUCKET_NAME, fileName, originalContent
-    )
-
-    filename = f'{fileName.split(".")[0]}-summarized.{fileName.split(".")[1]}'
-    if not self.client.BucketExists(UPLOAD_SUMMARIZED_BUCKET_NAME):
-      self.client.CreateBucket(UPLOAD_SUMMARIZED_BUCKET_NAME)
-    summaryResult = self.___UploadContentToTargetBucket(
-      UPLOAD_SUMMARIZED_BUCKET_NAME, filename, summarizedContent
-    )
-    return self.client.serverResponseUtil.GenerateServerResponse(
-      success=True,
-      message='',
-      extraData={'originalFile': originalResult, 'summarizedFile': summaryResult},
-    )
-
   def ___UploadContentToTargetBucket(
     self, bucketName: str, fileName: str, content: str
   ) -> ServerResponseObject:
@@ -88,6 +54,10 @@ class MinIO_Object:
     """Returns all documents inside the bucket if the bucket exists."""
     return self.client.GetAllObjectsInBucket(bucketName)
 
+  def GetNumberOfObjectsInBucket(self, bucketName: str) -> int:
+    """Returns the number of objects in the given bucket, returning 0 if bucket does not exist"""
+    return self.client.GetObjectCountInBucket(bucketName)
+
   def GetContentOfBucketObject(
     self, bucketName: str, fileName: str
   ) -> ServerResponseObject:
@@ -104,3 +74,9 @@ class MinIO_Object:
       message=f'content downloaded from file: {fileName} in bucket: {bucketName}',
       extraData={'content': contentBytes.decode('utf-8')},
     )
+
+  def DeleteDocument(self, documentName: str, bucketName: str) -> bool:
+    result = self.client.DeleteFileFromBucket(bucketName, fileName=documentName)
+    if self.GetNumberOfObjectsInBucket(bucketName) <= 0:
+      self.client.PurgeBucket(bucketName)
+    return result

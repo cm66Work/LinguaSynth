@@ -12,6 +12,7 @@ from Utils import JsonUtils
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.GenerateSchema
+from fastapi.responses import StreamingResponse
 
 # --- Objects ---
 llmObject = LLM_Object()
@@ -210,16 +211,23 @@ async def SchemaGeneration(
       force: bool = False
       tagCompression:float = 0.25 : tag similarity matching for quote combining.
   """
-  return APIs.GenerateSchema.SchemaGeneration(
-    bucketRootName=bucketRootName,
-    sampleSize=sampleSize,
-    serverResponse=serverResponse,
-    minioObject=minioObject,
-    llmObject=llmObject,
-    resolution=resolution,
-    force=force,
-    tagCompression=tagCompression,
-  )
+
+  async def EventStream():
+    # Iterate over the inner async generator
+    async for response in APIs.GenerateSchema.SchemaGeneration(
+      bucketRootName=bucketRootName,
+      sampleSize=sampleSize,
+      serverResponse=serverResponse,
+      minioObject=minioObject,
+      llmObject=llmObject,
+      resolution=resolution,
+      force=force,
+      tagCompression=tagCompression,
+    ):
+      # Convert the yielded dict to JSON
+      yield json.dumps(response) + '\n'
+
+  return StreamingResponse(EventStream(), media_type='application/json')
 
 
 # Select random x document from the processed bucket,

@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from urllib import response
 from ollama import Client, ResponseError
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
@@ -86,16 +87,16 @@ class LLMManager:
     try:
       result = ''
       if len(format) <= 0:
-        result = self.client.generate(model=model, prompt=prompt, think=think)
+        result = self.client.generate(model=model, prompt=prompt, think=think)['response']
       else:
         result = self.client.generate(
           model=model, prompt=prompt, think=think, format=format
-        )
+        )['response']
       return self.serverResponseUtil.GenerateServerResponse(
         success=True,
         message='response generated',
         # extraData={'response': result['response']},
-        response=result['response'],
+        response=result,
         extraData={'result': result},
         generateLog=False,
       )

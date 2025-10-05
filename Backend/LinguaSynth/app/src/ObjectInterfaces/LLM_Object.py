@@ -162,19 +162,8 @@ class LLM_Object:
     )
     return result
 
-    # For example: {{'dessert_name': 'string'}} must be result in {{'dessert_name': 'cake'}}
-    # For example: {{'first_appearance_year': 'int32'}} must be result in {{'first_appearance_year': 1900}}
-    # Example output:
-    # {{
-    #   "id": "124",
-    #   "company_name": "Stark Industries",
-    #   "num_employees": 5215,
-    #   "country": "USA"
-    # }}
-
-    # Output: JSON only.
-
-  async def GenerateV2(self, prompt: str) -> LLMServerResponseObject:
-    print('----------')
-    result = await self.client.Generate(model=LLM_LIGHT_GENERATION_MODEL, prompt=prompt)
+  async def GenerateV2(self, prompt: str, format={}) -> LLMServerResponseObject:
+    result = await self.client.Generate(
+      model=LLM_LIGHT_GENERATION_MODEL, prompt=prompt, format=format
+    )
     return result

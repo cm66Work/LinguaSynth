@@ -25,7 +25,7 @@ async def ProcessNewDocuments(
       json.dumps(
         asdict(
           ServerResponseObject(
-            Success=False, Message='Processing...', Data={'document_count': 0}
+            Success=False, Message='Processing...', Data={'document_count': 1}
           )
         )
       )
