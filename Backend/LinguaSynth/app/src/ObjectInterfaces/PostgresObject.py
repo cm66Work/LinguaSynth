@@ -10,12 +10,8 @@ DB_TABLE_COLUMNS = {
   'summarizedFilePath': 'TEXT NOT NULL',
 }
 
-DB_DOCUMENT_UPLOAD_REFERENCE_COLUMNS = {
-  'id': 'SERIAL PRIMARY KEY',
-  'documentPath': 'TEXT NOT NULL',
-}
 
-DS_SUMMARIZED_UPLOAD_REFERENCE_COLUMNS = {
+DS_UPLOAD_REFERENCE_COLUMNS = {
   'id': 'SERIAL PRIMARY KEY',
   'originalDocumentPath': 'TEXT NOT NULL',
   'summarizedDocumentPath': 'TEXT NOT NULL',
@@ -57,20 +53,20 @@ class Postgres_Object:
     }
     return self.client.InsertIntoTable(DB_TABLE_NAME, data)
 
-  async def UploadOriginalDocument(self, tableName: str, documentPath: str):
-    """
-    Uploads the document's path to the file server.
-    Args:
-        documentPath (str): path to the original file storage location.
-    """
-    data = {
-      'documentPath': documentPath,
-    }
-    return await self.__UploadDocument(
-      tableName, data, DB_DOCUMENT_UPLOAD_REFERENCE_COLUMNS
-    )
+  # async def RegisterDocumentToDB(self, tableName: str, documentPath: str):
+  #   """
+  #   Uploads the document's path to the file server.
+  #   Args:
+  #       documentPath (str): path to the original file storage location.
+  #   """
+  #   data = {
+  #     'documentPath': documentPath,
+  #   }
+  #   return await self.__UploadDocument(
+  #     tableName, data, DB_DOCUMENT_UPLOAD_REFERENCE_COLUMNS
+  #   )
 
-  async def UploadSummarizedDocument(
+  async def RegisterDocument(
     self, tableName: str, originalDocumentPath: str, summarizedDocumentPath: str
   ):
     """
@@ -83,9 +79,7 @@ class Postgres_Object:
       'originalDocumentPath': originalDocumentPath,
       'summarizedDocumentPath': summarizedDocumentPath,
     }
-    return await self.__UploadDocument(
-      tableName, data, DS_SUMMARIZED_UPLOAD_REFERENCE_COLUMNS
-    )
+    return await self.__UploadDocument(tableName, data, DS_UPLOAD_REFERENCE_COLUMNS)
 
   async def __UploadDocument(self, tableName, data, columnReference):
     result = self.client.TableExists(tableName)

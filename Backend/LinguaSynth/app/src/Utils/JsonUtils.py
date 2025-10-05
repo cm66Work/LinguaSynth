@@ -59,3 +59,23 @@ def SanitizeJson(content: str):
     # Return an empty string + False instead of the Exception object
     print(e)
     return [f'{e}', False]
+
+
+def TryConvertStringToJson(content: str) -> str:
+  """
+  Find any json inside the string and returns a json dumps string of it
+  Return:
+      return is a json string: {"matches" : [...]}
+  """
+  if not len(content) > 0:
+    return '{ "matches": []}'
+
+  matches = re.finditer(r'(\{[\s\S]*\})', content)
+  items = [str(m.group(0)).replace("'", '"') for m in matches]
+  matchString = '{ "matches": [' + ','.join(items) + ']}'
+
+  try:
+    # load then dump so it is not valid json we will catch the error.
+    return json.dumps(json.loads(matchString), separators=(',', ':'))
+  except Exception:
+    return '{ "matches": []}'
