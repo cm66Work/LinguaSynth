@@ -10,10 +10,6 @@ class Panel:
     self.categoryName = categoryName.get().strip()
     self.progressbar = progressbar
 
-    print('---')
-    print(self.serverAddress)
-    print(self.categoryName)
-
   class ErrorType(Enum):
     Error = 'Error'
     Warning = 'Warning'
@@ -29,5 +25,8 @@ class Panel:
         messagebox.showinfo(errorType.value, message)
 
   def UpdateProgressbar(self, current, total, message: str = ''):
+    print(f'\n total: {total}, processedDocuments: {current}')
+    if total <= 0:
+      return
     percentage = math.ceil((current / total) * 100)
     self.progressbar.SetProgress(percentage, message)

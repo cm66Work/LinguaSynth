@@ -1,6 +1,6 @@
 # region Schema generation
 import time
-from tkinter import messagebox
+import tkinter as tk
 from Panels.Panel import Panel
 from ButtonActions.ProcessSchemaGeneration import ProcessSchemaGeneration
 from Utils.CustomTK import TextProgressBar
@@ -13,12 +13,14 @@ class SchemaGenerationPanel(Panel):
     resolution,
     serverAddress,
     categoryName,
+    generatedSchema: tk.Entry,
     progressbar: TextProgressBar,
   ):
     super().__init__(serverAddress, categoryName, progressbar)
 
     self.schemaSampleSize = sampleSize.get().strip()
     self.schemaResolution = resolution.get().strip()
+    self.generatedSchema = generatedSchema
 
   def GenerateSchema(self):
     if not self.serverAddress or not self.categoryName:
@@ -27,7 +29,7 @@ class SchemaGenerationPanel(Panel):
       )
       return
 
-    def UpdateProgress(
+    def UpdateProgressbar(
       totalDocuments,
       processedDocuments,
       totalSchemaTags,
@@ -54,14 +56,14 @@ class SchemaGenerationPanel(Panel):
         mins, secs = divmod(int(remaining), 60)
         progressbarMessage = f'{responseMessage} | etr: {mins:02d}:{secs:02d}'
 
-      print(progressbarMessage)
+      self.UpdateProgressbar(processedDocuments, totalDocuments, progressbarMessage)
 
     processor = ProcessSchemaGeneration(
       self.serverAddress,
       self.categoryName,
       self.schemaSampleSize,
       self.schemaResolution,
-      progressBarCallback=UpdateProgress,
+      progressBarCallback=UpdateProgressbar,
     )
     result, schemaJsonString = processor.GenerateSchema(time.time())
     # print('Final:', result, statusCode)
@@ -69,4 +71,8 @@ class SchemaGenerationPanel(Panel):
     # Hide progress bar when done
     # schemaProgressbarFrame.grid_forget()
 
-    messagebox.showinfo('Upload Result', str(schemaJsonString))
+    self.generatedSchema.insert(tk.INSERT, str(schemaJsonString))
+    self.CreateMessageBox(
+      'Tag generation completed. Please validate and confirm generated tags',
+      self.ErrorType.Info,
+    )

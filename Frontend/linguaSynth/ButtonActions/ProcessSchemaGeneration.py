@@ -32,17 +32,15 @@ class ProcessSchemaGeneration:
         if line:
           try:
             data = json.loads(line.decode('utf-8'))
+            print(f'{data} \n\n')
             # print('Stream update:', data)
+            totalDocuments = int(data['Data'].get('total_documents_to_process', 1))
+            processedDocuments = int(data['Data'].get('processed_document_count', 0))
+            totalSchemaTags = int(data['Data'].get('total_schema_tags', 1))
+            processedSchemaTags = int(data['Data'].get('processed_schema_tags', 0))
+            schemaJsonString = data['Data'].get('schema_json_string', '')
 
-            # Notify GUI for progress
-            (
-              totalDocuments,
-              processedDocuments,
-              totalSchemaTags,
-              processedSchemaTags,
-              schemaJsonString,
-            ) = data['data']
-            responseMessage = data['message']
+            responseMessage = data['Message']
 
             if self.progressBarCallback:
               self.progressBarCallback(

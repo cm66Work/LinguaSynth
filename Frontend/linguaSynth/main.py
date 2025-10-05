@@ -4,6 +4,7 @@ from tkinter import filedialog, Frame
 from Utils.CustomTK import TextProgressBar
 from Panels.FileUploadPanel import FileUploadPanel
 from Panels.SchemaGenerationPanel import SchemaGenerationPanel
+from Panels.ProcessNewUploadedDocumentsPanel import ProcessNewUploadDocumentsPanel
 
 
 class TKWindow:
@@ -92,9 +93,20 @@ class TKWindow:
     tk.Label(resolutionOptionFrame, text='Resolution:').pack(side='left', padx=1)
     self.resolution = tk.Entry(resolutionOptionFrame, width=15)
     self.resolution.pack(side='right')
-    tk.Button(self.schemaGeneration, text='Generate', command=self.GenerateSchema).pack(
-      anchor='n'
+    generationButtonFrame = Frame(self.schemaGeneration)
+    generationButtonFrame.pack(anchor='n')
+    tk.Button(generationButtonFrame, text='Generate', command=self.GenerateSchema).pack(
+      side='left'
     )
+    tk.Button(generationButtonFrame, text='Upload', command=self.UploadSchema).pack(
+      side='right'
+    )
+
+    self.root.update_idletasks()
+    self.generatedSchema = tk.Entry(
+      self.schemaGeneration, width=self.schemaGeneration.winfo_width() - 2
+    )
+    self.generatedSchema.pack()
     # endregion
 
     # region server address
@@ -145,7 +157,12 @@ class TKWindow:
     self.fileUploadPanel.UploadFiles()
 
   def ProcessDocuments(self):
-    pass
+    self.processNewDocumentsPanel = ProcessNewUploadDocumentsPanel(
+      serverAddress=self.serverAddress,
+      categoryName=self.schemaCategoryName,
+      progressbar=self.progressbar,
+    )
+    self.processNewDocumentsPanel.ProcessNewUploadedDocuments()
 
   def GenerateSchema(self):
     self.schemaGenerationPanel = SchemaGenerationPanel(
@@ -153,9 +170,13 @@ class TKWindow:
       resolution=self.resolution,
       serverAddress=self.serverAddress,
       categoryName=self.schemaCategoryName,
+      generatedSchema=self.generatedSchema,
       progressbar=self.progressbar,
     )
     self.schemaGenerationPanel.GenerateSchema()
+
+  def UploadSchema(self):
+    pass
 
   def SendQuestion(self):
     pass
@@ -193,66 +214,6 @@ if __name__ == '__main__':
 # progressbar_label = tk.Label(progressbar_frame, text='Estimated time remaining: --:--')
 # progressbar_label.grid(row=1, column=0, padx=10, pady=5)
 
-
-# # region Processed new uploaded document
-# def ProcessNewUploadedDocuments():
-#   server_address = server_entry.get().strip()
-#   category = category_entry.get().strip()
-
-#   if not server_address or not category:
-#     messagebox.showerror('Error', 'server address and category are required!')
-#     return
-
-#   # Show progress bar
-#   progressbar_frame.grid(row=4, column=0, columnspan=3, pady=10)
-#   progress['maximum'] = 100
-#   progress['value'] = 0
-
-#   def update_progress(value: int, max: int, startTime):
-#     value += 1
-#     progress['maximum'] = max
-#     progress['value'] = value
-#     root.update_idletasks()
-
-#     # compute ETA
-#     if value > 0:
-#       elapsed = time.time() - startTime
-#       rate = elapsed / value
-#       remaining = rate * (max - value)
-
-#       mins, secs = divmod(int(remaining), 60)
-
-#       progressbar_label.config(
-#         text=f'files processed: {value}/{max} | etr: {mins:02d}:{secs:02d}'
-#       )
-#     else:
-#       progressbar_label.config(
-#         text=f'files processed: {value}/{max} | etc: Calculating...'
-#       )
-
-#   processor = ProcessUploadedDocuments.ProcessUploadedDocuments(
-#     server_address, category, update_progress
-#   )
-#   result, statusCode = processor.ProcessFiles(time.time())
-#   # print('Final:', result, statusCode)
-
-#   # Hide progress bar when done
-#   progressbar_frame.grid_forget()
-
-#   messagebox.showinfo('Upload Result', result)
-
-
-# # --- GUI
-
-# tk.Button(
-#   button_frame, text='Process Documents', command=ProcessNewUploadedDocuments
-# ).pack(side='right', padx=5)
-
-# tk.Label(button_frame, text='Summarization Passes:').pack(side='left', padx=5)
-# summarizationPasses = tk.Entry(button_frame, width=5)
-# summarizationPasses.pack(side='left', padx=5)
-
-# # endregion
 
 # fileDirectory = tk.Frame(fileUploadFrame)
 # fileDirectory.grid(row=0, column=0, columnspan=3, pady=5)
