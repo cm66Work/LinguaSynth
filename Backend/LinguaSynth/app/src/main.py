@@ -12,6 +12,7 @@ from Utils import JsonUtils
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.GenerateSchema
+import APIs.UploadJsonSchema
 from fastapi.responses import StreamingResponse
 
 # --- Objects ---
@@ -230,13 +231,39 @@ async def SchemaGeneration(
   return StreamingResponse(EventStream(), media_type='application/json')
 
 
-# Select random x document from the processed bucket,
-# combine them to generate the schema.
-# return the schema for the users to review and approve.
-
 # endregion
 
+
 # region Schema Uploading
+@app.post('/upload-json-schema/')
+async def UploadJsonSchema(schemaName: str, schemaJsonString: str, force: bool = False):
+  """
+  Uploads the given schema as a new typesense collection schema.
+
+  Args:
+      schemaName: str : the schemas name.
+      schemaJsonString: str : the json string for the schema.
+      force : bool : if true then it will override any existing schemas with the same name.
+  """
+
+  async def EventStream():
+    async for response in APIs.UploadJsonSchema.UploadJsonSchema(
+      schemaName=schemaName,
+      schemaJsonString=schemaJsonString,
+      serverResponse=serverResponse,
+      typesenseObject=typesenseObject,
+      force=force,
+    ):
+      yield json.dumps(response) + '\n'
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+@app.get('/get-schemas/')
+async def GetLoadedSchemas():
+  return typesenseObject.GetAllSchemas()
+
+
 # uploaded the passed schema string to typesense.
 
 # endregion

@@ -161,7 +161,7 @@ class TypesenseManager:
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
         message=f'documents uploaded Failed to index. {e}',
-        errorType=ErrorTypes.Error
+        errorType=ErrorTypes.Error,
       )
 
   def NewQuery(self, collectionName: str, query, minHits=2, maxHits=20):
