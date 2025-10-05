@@ -5,6 +5,7 @@ from Utils.CustomTK import TextProgressBar
 from Panels.FileUploadPanel import FileUploadPanel
 from Panels.SchemaGenerationPanel import SchemaGenerationPanel
 from Panels.ProcessNewUploadedDocumentsPanel import ProcessNewUploadDocumentsPanel
+from Panels.SchemaUploadPanel import SchemaUploadPanel
 
 
 class TKWindow:
@@ -176,7 +177,13 @@ class TKWindow:
     self.schemaGenerationPanel.GenerateSchema()
 
   def UploadSchema(self):
-    pass
+    self.schemaUploadPanel = SchemaUploadPanel(
+      serverAddress=self.serverAddress,
+      categoryName=self.schemaCategoryName,
+      schemaJsonString=self.generatedSchema,
+      progressbar=self.progressbar,
+    )
+    self.schemaUploadPanel.UploadSchema()
 
   def SendQuestion(self):
     pass

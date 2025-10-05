@@ -2,7 +2,7 @@ import requests
 import json
 
 
-class ProcessSchemaGeneration:
+class ProcessSchemaGenerationButtonAction:
   def __init__(
     self,
     serverAddress,

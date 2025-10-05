@@ -2,7 +2,7 @@
 import time
 import tkinter as tk
 from Panels.Panel import Panel
-from ButtonActions.ProcessSchemaGeneration import ProcessSchemaGeneration
+from ButtonActions.ProcessSchemaGeneration import ProcessSchemaGenerationButtonAction
 from Utils.CustomTK import TextProgressBar
 
 
@@ -58,7 +58,7 @@ class SchemaGenerationPanel(Panel):
 
       self.UpdateProgressbar(processedDocuments, totalDocuments, progressbarMessage)
 
-    processor = ProcessSchemaGeneration(
+    processor = ProcessSchemaGenerationButtonAction(
       self.serverAddress,
       self.categoryName,
       self.schemaSampleSize,
@@ -67,9 +67,6 @@ class SchemaGenerationPanel(Panel):
     )
     result, schemaJsonString = processor.GenerateSchema(time.time())
     # print('Final:', result, statusCode)
-
-    # Hide progress bar when done
-    # schemaProgressbarFrame.grid_forget()
 
     self.generatedSchema.insert(tk.INSERT, str(schemaJsonString))
     self.CreateMessageBox(
