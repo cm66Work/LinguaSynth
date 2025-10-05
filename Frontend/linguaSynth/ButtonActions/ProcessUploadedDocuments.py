@@ -26,9 +26,14 @@ class ProcessUploadedDocuments:
 
             # Notify GUI for progress
             if self.progressBarCallback:
-              currentProgress = data['Data'].get('processed_document_count', 0)
+              print(data)
+              currentProgress = data['Data'].get(
+                'processed_document_count', 1
+              )  # 1 so not to divide by 0 by accident
               totalDocumentsCount = data['Data'].get('document_count', 100)
-              self.progressBarCallback(currentProgress, totalDocumentsCount, startTime)
+              self.progressBarCallback(
+                currentProgress, totalDocumentsCount, data['Message'], startTime
+              )
           except json.JSONDecodeError:
             print('Invalid JSON chunk:', line)
 
