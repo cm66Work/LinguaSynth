@@ -6,6 +6,7 @@ from Panels.FileUploadPanel import FileUploadPanel
 from Panels.SchemaGenerationPanel import SchemaGenerationPanel
 from Panels.ProcessNewUploadedDocumentsPanel import ProcessNewUploadDocumentsPanel
 from Panels.SchemaUploadPanel import SchemaUploadPanel
+from Panels.DocumentIndexingPanel import DocumentIndexingPanel
 
 
 class TKWindow:
@@ -78,6 +79,9 @@ class TKWindow:
     tk.Button(buttonFrame, text='Process documents', command=self.ProcessDocuments).pack(
       side='right'
     )
+    tk.Button(
+      buttonFrame, text='Index documents', command=self.StartIndexingDocuments
+    ).pack(side='bottom')
     # endregion
 
     # region schema generation
@@ -184,6 +188,14 @@ class TKWindow:
       progressbar=self.progressbar,
     )
     self.schemaUploadPanel.UploadSchema()
+
+  def StartIndexingDocuments(self):
+    self.documentIndexingPanel = DocumentIndexingPanel(
+      serverAddress=self.serverAddress,
+      categoryName=self.schemaCategoryName,
+      progressbar=self.progressbar,
+    )
+    self.documentIndexingPanel.StartIndexingDocuments()
 
   def SendQuestion(self):
     pass
