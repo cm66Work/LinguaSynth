@@ -1,7 +1,7 @@
 # Compose file for the ollama LLM service
 services:
   ollama:
-    image: ollama/ollama:0.11.8
+    image: ollama/ollama:0.11.10
     container_name: "ollama_server"
     restart: on-failure
     ports:
