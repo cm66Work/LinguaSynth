@@ -1,10 +1,10 @@
 import json
-from typing import Any
+from typing import Any, cast
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 import requests
 from typesense.client import Client
-from typesense.types.collection import CollectionCreateSchema
+from typesense.types.collection import CollectionCreateSchema, CollectionSchema
 
 OLLAMA_HOST = 'http://ollama:11434'
 
@@ -44,15 +44,13 @@ class TypesenseManager:
     self.schema: CollectionCreateSchema = {'name': 'default', 'fields': []}
     self.serverResponseUtil = ServerResponse('Typesense', 'typesense_log')
 
-  def CanOverrideSchema(self, schema: dict[str, Any], force=False) -> bool:
+  def CanOverrideSchema(self, schema: CollectionSchema, force=False) -> bool:
     """
     Replaces the existing schema with a new one.
     Args:
         schema (dict): New schema.
         force (bool): If the, will not stop override of schema if one already exists.
     """
-    if isinstance(schema, str):
-      schema = json.loads(schema)
     if len(schema['fields']) > 0 and not force:
       self.serverResponseUtil.GenerateLogMessage(
         'ERROR::TypesenseManager.SetSchema:: Can not override existing schema with out force'
@@ -62,77 +60,104 @@ class TypesenseManager:
       self.serverResponseUtil.GenerateLogMessage(
         'WARNING::TypesenseManager.SetSchema:: Forcing override of existing schema.'
       )
-    self.serverResponseUtil.GenerateLogMessage(
-      f'Setting new schema. List:{self.client.collections.retrieve()}'
-    )
     return True
 
-  def CollectionExists(self, collectionName: str) -> bool:
-    for collection in self.GetLoadedSchemas():
-      # jsonCollection: dict[str, Any] = json.loads(str(collection).replace("'", '"'))
-      if collection['name'] == collectionName:  # type: ignore
+  def SchemaExists(self, collectionName: str) -> bool:
+    for schema in self.GetLoadedSchemas():
+      if schema['name'] == collectionName:  # type: ignore
         return True
     return False
 
   def RecreateCollection(
-    self, newSchema: dict[str, Any], force=False
+    self, schemaName: str, newSchema: str, force=False
   ) -> ServerResponseObject:
     """
     Deletes and recreates a new collection with the provides schema.
     Args:
         schema: The schema used in the collection.
     """
-    if not bool(newSchema.get('fields')):
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message='New schema is empty',
-        errorType=ErrorTypes.Warning,
-        className=self.__class__.__name__,
-      )
-    if not self.CanOverrideSchema(schema=newSchema, force=force):
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message='Cannot override existing schema',
-        errorType=ErrorTypes.Warning,
-        className=self.__class__.__name__,
-      )
-
-    if force and self.CollectionExists(newSchema['name']):
-      self.client.collections[newSchema['name']].delete()
-
+    # try to cast the given schema to the Typesense schema.
+    # This creates a nice layer of separation between the interface and the manager.
     try:
-      # create the schema
-      # ignore the pylance typing error it is fine.
-      result = self.client.collections.create(newSchema)  # type: ignore
-      # make sure it's JSON serializable
-      safe_result = dict(result) if not isinstance(result, dict) else result
+      validationResponse = self.__SchemaCreationValidation(schemaName, force)
+      # run validation checks
+      if validationResponse.Finished:
+        # Validation failed.
+        return validationResponse
 
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=True, extraData={'result': safe_result}
-      )
+      if self.SchemaExists(schemaName):
+        try:
+          self.client.collections[schemaName].delete()
+        except Exception as e:
+          return self.serverResponseUtil.GenerateServerResponse(
+            success=False,
+            message=f'Failed to delete schema: {e}',
+            errorType=ErrorTypes.Exception,
+            className=self.__class__.__name__,
+            finished=True,
+          )
+
+      schema = json.loads(newSchema)
+      schema = cast(CollectionSchema, schema)
+      schema['name'] = schemaName
+      schema['enable_nested_fields'] = True
+
+      try:
+        # create the schema
+        result = self.client.collections.create(schema)
+        return self.serverResponseUtil.GenerateServerResponse(
+          success=True, extraData={'result': result}, finished=True
+        )
+      except Exception as e:
+        return self.serverResponseUtil.GenerateServerResponse(
+          success=False,
+          message=f'Failed to create schema: {e}',
+          errorType=ErrorTypes.Exception,
+          className=self.__class__.__name__,
+          finished=True,
+        )
     except Exception as e:
+      print(e, '/n')
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
-        message=f'{e}',
-        errorType=ErrorTypes.Exception,
+        message=f'{e} Failed to cast schema to Typesense schema type',
+        errorType=ErrorTypes.Error,
         className=self.__class__.__name__,
+        finished=True,
       )
 
-  def DeleteCollection(self, name: str):
-    """
-    Deletes the collection if it exists.
-    Args:
-        name (str): Collection name to be deleted.
-    """
-    try:
-      result = self.client.collections[name].delete()
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=True, message=f'Deleted collection {name}', extraData={'result': result}
+  def __SchemaCreationValidation(
+    self,
+    schemaName: str,
+    force: bool = False,
+  ):
+    validationResponse = self.serverResponseUtil.GenerateServerResponse(
+      success=False,
+      message='',
+      extraData={},
+      className=__class__.__name__,
+      finished=False,
+    )
+    if len(schemaName) <= 0:
+      validationResponse.Message = (
+        'Entered schema name is empty. Canceling upload of new schema.'
       )
-    except Exception as e:
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=False, message=f'EXCEPTION::Typesense.DeleteCollection:: {e}'
-      )
+      validationResponse.Success = False
+      validationResponse.Finished = True
+      return validationResponse
+
+    if self.SchemaExists(schemaName) and not force:
+      validationResponse.Success = False
+      validationResponse.Finished = True
+      validationResponse.Message = 'Schema already exists. Schema overriding is currently protected. Set force to True to disable override protection.'
+      return validationResponse
+    elif self.SchemaExists(schemaName) and force:
+      validationResponse.Success = True
+      validationResponse.Finished = False
+      validationResponse.Message = 'Forcing override of existing schema.'
+      return validationResponse
+
+    return validationResponse
 
   def IndexDocuments(self, collectionName: str, docs: dict[str, Any]):
     """
@@ -217,11 +242,14 @@ class TypesenseManager:
       )
     except Exception as e:
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False, message=f'{e}', errorType=ErrorTypes.Warning, generateLog=False
+        success=False,
+        message=f'{e}',
+        errorType=ErrorTypes.Warning,
+        generateLog=False,
       )
 
   # region Tools
-  def GetLoadedSchemas(self) -> dict[str, Any]:
+  def GetLoadedSchemas(self):
     # ignoring the pylance error, the type is correct.
     return self.client.collections.retrieve()  # type: ignore
 
