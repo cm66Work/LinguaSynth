@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from urllib import response
+from typing import List
 from ollama import Client, ResponseError
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
@@ -33,7 +33,7 @@ class LLMServerResponse(ServerResponse):
 
 
 class LLMManager:
-  def __init__(self, hostAddress: str, model='gemma3:1b'):
+  def __init__(self, hostAddress: str):
     self.client = Client(host=hostAddress)
     self.serverResponseUtil = LLMServerResponse('Ollama', 'ollama_log')
 
@@ -110,3 +110,31 @@ class LLMManager:
     if modelName in models:
       return True
     return False
+
+  async def GetEmbeddings(self, texts: List[str], model: str) -> List[List[float]]:
+    """
+    Get embeddings for a list of texts using your existing Ollama client class.
+
+    Args:
+        texts: List of text strings to embed.
+        client: Your Ollama client instance that handles communication with the container.
+        model: The embedding model name, default 'embeddinggemma:300m'.
+
+    Returns:
+        List of embedding vectors (List[List[float]]).
+    """
+    if not self.__ModelExists(model):
+      await self.PullModel(imageName=model)
+    embeddings = []
+
+    for text in texts:
+      try:
+        response = self.client.embed(model=model, input=text)
+        # Support different return shapes
+        embeddings.append(response.embeddings)
+
+      except Exception as e:
+        print(f'[Warning] Embedding failed for text: {text[:50]}... ({e})')
+        embeddings.append([])  # Empty vector fallback
+
+    return embeddings

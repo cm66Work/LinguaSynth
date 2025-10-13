@@ -67,6 +67,7 @@ async def ProcessNewDocuments(
 
     uploadedDocumentNames = []
     unprocessedDocumentNames = []
+    mergedContent = ''
     # Get all original documents in the storage bucket.
     for document in minioObject.GetObjectsInBucket(newDocumentBucketName):
       yield (
@@ -144,6 +145,7 @@ async def ProcessNewDocuments(
 
       # move the document from the new bucket to the processed bucket
       minioObject.DeleteDocument(document.object_name, newDocumentBucketName)
+      mergedContent += f'\n {summarizedDocumentContent}'
 
     yield json.dumps(
       asdict(
@@ -160,6 +162,8 @@ async def ProcessNewDocuments(
         )
       )
     )
+
+    print('\n', mergedContent)
 
   return StreamingResponse(EventStream(), media_type='application/json')
 

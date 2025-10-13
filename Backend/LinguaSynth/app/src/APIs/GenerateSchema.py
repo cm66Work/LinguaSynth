@@ -106,7 +106,7 @@ async def SchemaGeneration(
     # Reduce the number of tags
     # - join values or quotes if we remove a duplicate.
     # -- Might be fun to see if there is a way to generate tags through logic.
-    print(f'\ndocumentTags: {documentTags}')
+    # print(f'\ndocumentTags: {documentTags}')
     documentTags = reduce_tags_fuzzy(documentTags, 0.4)
 
     returnedDataObject['processed_document_count'] += 1

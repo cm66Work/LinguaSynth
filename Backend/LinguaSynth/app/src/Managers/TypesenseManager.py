@@ -175,16 +175,18 @@ class TypesenseManager:
 
     return validationResponse
 
-  def IndexDocuments(self, collectionName: str, docs: dict[str, Any]):
+  def IndexDocuments(self, collectionName: str, documentString: str):
     """
     Imports document content into Typesense
     Args:
         collection (str): Collection used to store the file.
-        documents (JSONLines): JSONLines list of documents to upload.
-          Format = [{id, schema files...},]
+        documents (str): document to upload.
+          # Format = [{id, schema files...},]
     """
-
     try:
+      docs = json.loads(documentString)
+      docs = cast(DocumentSchema, docs)
+
       # result = self.client.collections[collection].documents.import_(
       #   documents=docs, import_parameters={'action': 'upsert'}
       # )
@@ -201,7 +203,7 @@ class TypesenseManager:
     except Exception as e:
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
-        message=f'documents uploaded Failed to index. {e}',
+        message=f'Failed to index document. {e} a',
         errorType=ErrorTypes.Error,
       )
 

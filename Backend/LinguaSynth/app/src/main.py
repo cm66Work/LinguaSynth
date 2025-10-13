@@ -12,7 +12,8 @@ from Utils import JsonUtils
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.GenerateSchema
-import APIs.UploadJsonSchema
+import APIs.UploadSchema
+import APIs.IndexNewDocuments
 from fastapi.responses import StreamingResponse
 
 # --- Objects ---
@@ -89,11 +90,14 @@ async def UserQuestion(
   query.pop('filter_by')
 
   query = json.dumps(query)
-  questionResults = typesenseObject.AskQuestion(searchSchema, query, minHits, maxHits)
+  questionResults = typesenseObject.AskQuestion(
+    searchSchema, query, minHits, maxHits
+  )
   # print(questionResults)
   if not questionResults.Success or questionResults.Data == {}:
     return serverResponse.GenerateServerResponse(
-      success=False, message='failed to find information related to users question'
+      success=False,
+      message='failed to find information related to users question',
     )
   questionResults = questionResults.Data
   document = questionResults.get('documents', [])
@@ -188,13 +192,16 @@ async def UploadNewDocument(documentCategory: str, file: UploadFile):
 @app.post('/process-new-uploaded-documents/')
 async def ProcessNewDocuments(bucketRootName: str, resolution: int = 1):
   return await APIs.ProcessNewDocuments.ProcessNewDocuments(
-    bucketRootName, serverResponse, minioObject, llmObject, postgresObject, resolution
+    bucketRootName,
+    serverResponse,
+    minioObject,
+    llmObject,
+    postgresObject,
+    resolution,
   )
 
 
 # region Schema generation
-
-
 @app.post('/generate-schema/')
 async def SchemaGeneration(
   bucketRootName: str,
@@ -212,6 +219,17 @@ async def SchemaGeneration(
       force: bool = False
       tagCompression:float = 0.25 : tag similarity matching for quote combining.
   """
+  # await APIs.GenerateSchemaVectorEmbeddings.SchemaGenerationVectorEmbeddings(
+  #   bucketRootName=bucketRootName,
+  #   sampleSize=sampleSize,
+  #   serverResponse=serverResponse,
+  #   minioObject=minioObject,
+  #   llmObject=llmObject,
+  #   resolution=resolution,
+  #   force=force,
+  #   tagCompression=tagCompression,
+  # )
+  # return
 
   async def EventStream():
     # Iterate over the inner async generator
@@ -235,8 +253,8 @@ async def SchemaGeneration(
 
 
 # region Schema Uploading
-@app.post('/upload-json-schema/')
-async def UploadJsonSchema(schemaName: str, schemaJsonString: str, force: bool = False):
+@app.post('/upload-schema/')
+async def UploadJsonSchema(schemaName: str, schema: str, force: bool = False):
   """
   Uploads the given schema as a new typesense collection schema.
 
@@ -247,14 +265,15 @@ async def UploadJsonSchema(schemaName: str, schemaJsonString: str, force: bool =
   """
 
   async def EventStream():
-    async for response in APIs.UploadJsonSchema.UploadJsonSchema(
-      schemaName=schemaName,
-      schemaJsonString=schemaJsonString,
-      serverResponse=serverResponse,
-      typesenseObject=typesenseObject,
-      force=force,
+    async for response in APIs.UploadSchema.UploadSchema(
+      schemaName,
+      schema,
+      serverResponse,
+      typesenseObject,
+      force,
     ):
-      yield json.dumps(response) + '\n'
+      response = json.dumps(vars(response)) + '\n'
+      yield response
 
   return StreamingResponse(EventStream(), media_type='application/json')
 
@@ -268,9 +287,32 @@ async def GetLoadedSchemas():
 
 # endregion
 
+
 # region Document indexing
 # Index all summarized documents into typesense
 # files that have been indexed are marked in some way so that they can be skipped
 # if indexing is done again in the future.
+@app.post('/start-indexing-documents/')
+async def StartDocumentIndexing(schemaName: str):
+  """
+  Starts indexing new documents into the server using AI.
+  Args:
+      schemaName: str : the schemas name.
+  """
+
+  async def EventStream():
+    async for response in APIs.IndexNewDocuments.IndexNewDocuments(
+      schemaName=schemaName,
+      serverResponse=serverResponse,
+      typesenseObject=typesenseObject,
+      postgresObject=postgresObject,
+      minioObject=minioObject,
+      llmObject=llmObject,
+    ):
+      response = json.dumps(vars(response)) + '\n'
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
 
 # endregion
