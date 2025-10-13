@@ -21,7 +21,7 @@ class UploadSchemaButtonAction:
     # TODO:: Fixed this by adding a button to toggle force.
     self.force = True
     with requests.post(
-      f'{self.serverAddress}/upload-json-schema/?schemaName={self.categoryName}&schemaJsonString={self.schemaJsonString}&force={self.force}',
+      f'{self.serverAddress}/upload-schema/?schemaName={self.categoryName}&schema={self.schemaJsonString}&force={self.force}',
       stream=True,
     ) as response:
       if response.status_code != 200:
@@ -33,7 +33,6 @@ class UploadSchemaButtonAction:
         if line:
           try:
             data = json.loads(line.decode('utf-8'))
-            # print('Stream update:', data)
 
             # Notify GUI for progress
             if self.progressBarCallback:

@@ -22,11 +22,8 @@ class ProcessUploadedDocuments:
         if line:
           try:
             data = json.loads(line.decode('utf-8'))
-            # print('Stream update:', data)
-
             # Notify GUI for progress
             if self.progressBarCallback:
-              print(data)
               currentProgress = data['Data'].get(
                 'processed_document_count', 1
               )  # 1 so not to divide by 0 by accident

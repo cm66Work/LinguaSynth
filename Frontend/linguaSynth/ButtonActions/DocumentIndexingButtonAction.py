@@ -26,7 +26,18 @@ class DocumentIndexingButtonAction:
         if line:
           try:
             data = json.loads(line.decode('utf-8'))
-            print('Stream update:', data, '\n')
+            # Notify GUI for progress
+            if self.progressBarCallback:
+              if not bool(data['Success']):
+                self.progressBarCallback(
+                  data['Data']['total_documents'],
+                  data['Data']['processed_documents'],
+                  'Indexing...',
+                )
+              else:
+                self.progressBarCallback(100, 100, 'Finished')
+                if bool(data['Success']):
+                  success = True
 
           except json.JSONDecodeError:
             print('Invalid JSON chunk:', line)

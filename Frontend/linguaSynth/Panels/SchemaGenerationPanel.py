@@ -66,7 +66,6 @@ class SchemaGenerationPanel(Panel):
       progressBarCallback=UpdateProgressbar,
     )
     result, schemaJsonString = processor.GenerateSchema(time.time())
-    # print('Final:', result, statusCode)
 
     self.generatedSchema.insert(tk.INSERT, str(schemaJsonString))
     self.CreateMessageBox(

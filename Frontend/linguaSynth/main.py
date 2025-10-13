@@ -193,7 +193,7 @@ class TKWindow:
     self.documentIndexingPanel = DocumentIndexingPanel(
       serverAddress=self.serverAddress,
       categoryName=self.schemaCategoryName,
-      progressbar=self.progressbar,
+      progressbarCallback=self.progressbar,
     )
     self.documentIndexingPanel.StartIndexingDocuments()
 
@@ -208,102 +208,3 @@ if __name__ == '__main__':
 
   myWindow = TKWindow(root)
   myWindow.start()
-
-
-# # GUI setupV
-# root = tk.Tk()
-# root.title('LinguaSynth Testing Frontend')
-
-# # Frames
-# fileUploadFrame = tk.Frame(root)
-# fileUploadFrame.grid(row=0, column=0, columnspan=3, pady=10)
-
-# button_frame = tk.Frame(root)
-# button_frame.grid(row=3, column=0, columnspan=3, pady=10)
-
-# progressbar_frame = tk.Frame(root)
-# progressbar_frame.grid(column=0, columnspan=3, pady=10)
-
-
-# # Progress bar (hidden initially)
-# progress = ttk.Progressbar(
-#   progressbar_frame, orient='horizontal', mode='determinate', length=300
-# )
-# progress.grid(row=0, column=0, padx=10, pady=10)
-# progressbar_label = tk.Label(progressbar_frame, text='Estimated time remaining: --:--')
-# progressbar_label.grid(row=1, column=0, padx=10, pady=5)
-
-
-# fileDirectory = tk.Frame(fileUploadFrame)
-# fileDirectory.grid(row=0, column=0, columnspan=3, pady=5)
-# tk.Label(fileDirectory, text='File Directory:').grid(
-#   row=0, column=0, sticky='w', padx=0, pady=5
-# )
-# dir_entry = tk.Entry(fileDirectory, width=50)
-# dir_entry.grid(row=0, column=1, padx=5, pady=5)
-# tk.Button(fileDirectory, text='Browse', command=browse_directory).grid(
-#   row=0, column=2, padx=5, pady=5
-# )
-
-
-# serverAddressFrame = tk.Frame(fileUploadFrame)
-# serverAddressFrame.grid(row=1, column=0, columnspan=3, pady=5)
-# tk.Label(serverAddressFrame, text='Server Address:').grid(
-#   row=0, column=0, sticky='w', padx=5, pady=5
-# )
-# server_entry = tk.Entry(serverAddressFrame, width=15)
-# server_entry.grid(row=0, column=1, padx=5, pady=5)
-# tk.Label(serverAddressFrame, text='Document Category:').grid(
-#   row=0, column=2, sticky='w', padx=5, pady=5
-# )
-# category_entry = tk.Entry(serverAddressFrame, width=15)
-# category_entry.grid(row=0, column=3, padx=5, pady=5)
-
-
-# schemaGenerationFrame = tk.Frame(root)
-# schemaGenerationFrame.grid(row=5)
-# tk.Label(schemaGenerationFrame, text='Schema Generation ------------').grid(
-#   row=0, column=0, sticky='w'
-# )
-
-# schemaVariablesFrame = tk.Frame(schemaGenerationFrame)
-# schemaVariablesFrame.grid(row=1, column=0)
-# tk.Label(schemaVariablesFrame, text='Sample size:').grid(
-#   row=0, column=0, sticky='w', padx=5, pady=5
-# )
-# schemaSampleSize = tk.Entry(schemaVariablesFrame, width=10)
-# schemaSampleSize.grid(row=0, column=1)
-
-# tk.Label(schemaVariablesFrame, text='Resolution:').grid(
-#   row=1, column=0, sticky='w', padx=5, pady=5
-# )
-# schemaResolution = tk.Entry(schemaVariablesFrame, width=10)
-# schemaResolution.grid(row=1, column=1)
-
-# tk.Button(schemaGenerationFrame, text='Generate', command=GenerateSchema).grid(
-#   row=1, column=1, padx=5, pady=5
-# )
-
-# # Progress bar (hidden initially)
-# schemaProgressbarFrame = tk.Frame(schemaGenerationFrame)
-# schemaProgressbarFrame.grid(row=0, column=1)
-
-# documentProcessedProgressbar_label = tk.Label(
-#   schemaProgressbarFrame, text='Estimated time remaining: --:--'
-# )
-# documentProcessedProgressbar_label.grid(row=0, column=0, padx=10, pady=5)
-# documentProcessedProgress = ttk.Progressbar(
-#   progressbar_frame, orient='horizontal', mode='determinate', length=300
-# )
-# documentProcessedProgress.grid(row=0, column=0, padx=10, pady=10)
-
-# schemaProcessedProgressbar_label = tk.Label(
-#   schemaProgressbarFrame, text='Estimated time remaining: --:--'
-# )
-# schemaProcessedProgressbar_label.grid(row=1, column=0, padx=10, pady=5)
-# schemaProcessedProgress = ttk.Progressbar(
-#   progressbar_frame, orient='horizontal', mode='determinate', length=300
-# )
-# schemaProcessedProgress.grid(row=1, column=0, padx=10, pady=10)
-
-# root.mainloop()
