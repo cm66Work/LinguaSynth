@@ -48,7 +48,9 @@ class MinIO_Object:
   ):
     if not self.client.BucketExists(bucketName):
       self.client.CreateBucket(bucketName)
-    return self.___UploadContentToTargetBucket(bucketName, f'{documentName}', content)
+    return self.___UploadContentToTargetBucket(
+      bucketName, f'{documentName}', content
+    )
 
   def GetObjectsInBucket(self, bucketName: str):
     """Returns all documents inside the bucket if the bucket exists."""
@@ -61,18 +63,25 @@ class MinIO_Object:
   def GetContentOfBucketObject(
     self, bucketName: str, fileName: str
   ) -> ServerResponseObject:
-    contentBytes = self.client.DownloadFileContentFromBucket(bucketName, fileName)
-
+    contentBytes = self.client.DownloadFileContentFromBucket(
+      bucketName, fileName
+    )
+    currentResponse = ServerResponseObject()
+    currentResponse.Data = {'content': None}
     if len(contentBytes) <= 0:
+      currentResponse.Message = f'Failed to download content from file: {fileName} in bucket: {bucketName}.'
+      currentResponse.Finished = True
       return self.client.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'failed to download content from file: {fileName}, in bucket: {bucketName}',
+        currentResponse
       )
 
+    currentResponse.Success = True
+    currentResponse.Message = (
+      f'Content downloaded from file: {fileName} in bucket: {bucketName}'
+    )
+    currentResponse.Data['content'] = contentBytes.decode('utf-8')
     return self.client.serverResponseUtil.GenerateServerResponse(
-      success=True,
-      message=f'content downloaded from file: {fileName} in bucket: {bucketName}',
-      extraData={'content': contentBytes.decode('utf-8')},
+      currentResponse
     )
 
   def DeleteDocument(self, documentName: str, bucketName: str) -> bool:

@@ -1,5 +1,5 @@
 from Utils.LogUtils import ErrorTypes, LogUtil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -7,9 +7,9 @@ class ServerResponseObject:
   """Data class for the server response"""
 
   # Using to stop prevent strongly typed variables / keys
-  Success: bool
-  Message: str
-  Data: dict
+  Success: bool = False
+  Message: str = ''
+  Data: dict = field(default_factory=dict)
   Finished: bool = False
 
 
@@ -19,13 +19,10 @@ class ServerResponse(LogUtil):
 
   def GenerateServerResponse(
     self,
-    success: bool,
-    message: str = '',
+    serverResponseObject: ServerResponseObject,
     className: str = '',
     errorType: ErrorTypes = ErrorTypes.Ok,
-    extraData: dict = {},
     generateLog=True,
-    finished=False,
   ):
     """
     Private helper function to keep return message code DRY.
@@ -39,8 +36,13 @@ class ServerResponse(LogUtil):
       Object with both a result (bool) and message (str).
       Also returns extraData on the end if any passed.
     """
-    if generateLog or len(message) > 0:
-      self.GenerateLogMessage(message, className=className, errorType=errorType)
+    if generateLog or len(serverResponseObject.Message) > 0:
+      self.GenerateLogMessage(
+        serverResponseObject.Message, className=className, errorType=errorType
+      )
     return ServerResponseObject(
-      Success=success, Message=message, Data=extraData, Finished=finished
+      Success=serverResponseObject.Success,
+      Message=serverResponseObject.Message,
+      Data=serverResponseObject.Data,
+      Finished=serverResponseObject.Finished,
     )

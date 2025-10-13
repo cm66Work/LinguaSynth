@@ -1,6 +1,6 @@
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.LogUtils import ErrorTypes
-from Utils.ServerResponse import ServerResponse
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 
 async def UploadSchema(
@@ -18,15 +18,10 @@ async def UploadSchema(
       schemaString: str : the field string for the schema.
       force : bool : if true then it will override any existing schemas with the same name.
   """
-  currentResponse = serverResponse.GenerateServerResponse(
-    success=False,
-    message='',
-    extraData={},
-    finished=False,
-  )
 
+  currentResponse = ServerResponseObject()
   currentResponse.Message = 'Processing...'
-  yield currentResponse
+  yield serverResponse.GenerateServerResponse(currentResponse)
 
   # run validation checks
   currentResponse = __Validation(
@@ -43,12 +38,12 @@ async def UploadSchema(
     yield currentResponse
 
   except Exception as e:
+    currentResponse.Success = False
+    currentResponse.Message = f'{e}'
+    currentResponse.Finished = True
     yield serverResponse.GenerateServerResponse(
-      success=False,
-      message=f'{e}',
-      extraData={},
+      currentResponse,
       errorType=ErrorTypes.Error,
-      finished=True,
     )
 
 
@@ -59,11 +54,8 @@ def __Validation(
   force: bool = False,
 ):
   validationResponse = serverResponse.GenerateServerResponse(
-    success=False,
-    message='',
-    extraData={},
+    ServerResponseObject(),
     className='Upload Schema',
-    finished=False,
   )
   if len(schemaName) <= 0:
     validationResponse.Message = (

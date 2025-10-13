@@ -1,5 +1,4 @@
 import os
-from typing import Any
 from Utils.ServerResponse import ServerResponseObject
 from Managers.TypesenseManager import TypesenseManager
 

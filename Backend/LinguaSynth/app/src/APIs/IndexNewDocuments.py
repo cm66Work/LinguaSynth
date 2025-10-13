@@ -1,23 +1,12 @@
-from difflib import SequenceMatcher
-import difflib
 import json
 import re
-import typing
-from urllib import response
-from Utils import JsonUtils
-import numpy as np
-from typing import Any, Dict, List, cast
+from typing import Any, List, cast
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.LogUtils import ErrorTypes
-from Utils.ServerResponse import ServerResponse
-
-from APIs.Testing import DocumentGenerator
-
-
-# from APIs.Testing import GenerateDocument
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 
 async def IndexNewDocuments(
@@ -39,18 +28,18 @@ async def IndexNewDocuments(
       llmObject: LLM_Object: llm interface
   """
   extraData = {'total_documents': -1, 'processed_documents': -1}
-  currentResponse = serverResponse.GenerateServerResponse(
-    success=False, message='Indexing...', extraData=extraData
-  )
-  yield currentResponse
+  currentResponse = ServerResponseObject()
+  currentResponse.Data = extraData
+  currentResponse.Message = 'Processing....'
+  yield serverResponse.GenerateServerResponse(currentResponse)
 
   if not typesenseObject.SchemaExists(schemaName):
+    currentResponse.Success = False
+    currentResponse.Message = f'No schema with name: {schemaName}'
+    currentResponse.Data = extraData
+    currentResponse.Finished = True
     yield serverResponse.GenerateServerResponse(
-      success=False,
-      message='No schema with that name',
-      extraData=extraData,
-      errorType=ErrorTypes.Error,
-      finished=True,
+      currentResponse, errorType=ErrorTypes.Error, className='IndexNewDocument'
     )
     return
 
@@ -62,13 +51,13 @@ async def IndexNewDocuments(
   if schema is None:
     currentResponse.Message = f'Failed to get schema: {schemaName}'
     currentResponse.Finished = True
-    yield currentResponse
+    yield serverResponse.GenerateServerResponse(currentResponse)
     return
 
   # we only need the schema fields
   currentResponse.Message = 'Loading schema...'
   currentResponse.Data['processed_documents'] = 0
-  yield currentResponse
+  yield serverResponse.GenerateServerResponse(currentResponse)
 
   ## for each file -> for each paragraph,
   for document in minioObject.GetObjectsInBucket(processedDocumentsBucketName):
@@ -76,10 +65,10 @@ async def IndexNewDocuments(
       currentResponse.Message = (
         f'Failed to get content form bucket {processedDocumentsBucketName}'
       )
-      yield currentResponse
+      yield serverResponse.GenerateServerResponse(currentResponse)
       return
     currentResponse.Data['processed_documents'] += 1
-    yield currentResponse
+    yield serverResponse.GenerateServerResponse(currentResponse)
     minioResults = minioObject.GetContentOfBucketObject(
       processedDocumentsBucketName, document.object_name
     )
@@ -87,19 +76,12 @@ async def IndexNewDocuments(
       currentResponse.Message = (
         f'Failed to get content from file:{document.object_name.split(".")[0]}'
       )
-      yield currentResponse
+      yield serverResponse.GenerateServerResponse(currentResponse)
       return
 
     currentResponse.Message = 'Generating document from schema'
-    yield currentResponse
+    yield serverResponse.GenerateServerResponse(currentResponse)
 
-    # testing = DocumentGenerator(llmObject)
-    # response = await APIs.Testing.GenerateDocument(
-    #   schema, minioResults.Data['content'], llmObject
-    # )
-    # response = await testing.GenerateDocument(
-    #   schema, minioResults.Data['content']
-    # )
     try:
       schemaFields = schema['fields']
       GeneratedDocument = await GenerateDocument(
@@ -111,7 +93,7 @@ async def IndexNewDocuments(
       )
 
       currentResponse.Message = result.Message
-      yield result
+      yield serverResponse.GenerateServerResponse(currentResponse)
 
     except Exception as e:
       print(f'failed to index {e}')
