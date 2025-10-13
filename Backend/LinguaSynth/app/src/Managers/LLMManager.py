@@ -22,13 +22,18 @@ class LLMServerResponse(ServerResponse):
     className: str = '',
     errorType: ErrorTypes = ErrorTypes.Ok,
     extraData: dict = {},
-    response: str = '',
     generateLog=True,
+    finished=False,
+    response: str = '',
   ):
     if generateLog or len(message) > 0:
       self.GenerateLogMessage(message, className=className, errorType=errorType)
     return LLMServerResponseObject(
-      Success=success, Message=message, Data=extraData, Response=response
+      Success=success,
+      Message=message,
+      Data=extraData,
+      Response=response,
+      Finished=finished,
     )
 
 
@@ -51,7 +56,9 @@ class LLMManager:
     try:
       response = self.client.pull(imageName)
       return self.serverResponseUtil.GenerateServerResponse(
-        success=True, message='Pulled new ollama image.', extraData={'response': response}
+        success=True,
+        message='Pulled new ollama image.',
+        extraData={'response': response},
       )
     except ResponseError as e:
       return self.serverResponseUtil.GenerateServerResponse(
@@ -74,11 +81,13 @@ class LLMManager:
     """
     if len(prompt) <= 0:
       return self.serverResponseUtil.GenerateServerResponse(
-        False, 'ERROR::LLMManager.Generate:: Prompt is empty.'
+        False, 'ERROR::LLMManager.Generate:: Prompt is empty.', finished=True
       )
     if len(model) <= 0:
       return self.serverResponseUtil.GenerateServerResponse(
-        False, 'ERROR::LLMManager.Generate:: LLM model name is empty.'
+        False,
+        'ERROR::LLMManager.Generate:: LLM model name is empty.',
+        finished=True,
       )
 
     if not self.__ModelExists(model):
@@ -87,7 +96,9 @@ class LLMManager:
     try:
       result = ''
       if len(format) <= 0:
-        result = self.client.generate(model=model, prompt=prompt, think=think)['response']
+        result = self.client.generate(model=model, prompt=prompt, think=think)[
+          'response'
+        ]
       else:
         result = self.client.generate(
           model=model, prompt=prompt, think=think, format=format
@@ -102,7 +113,9 @@ class LLMManager:
       )
     except ResponseError as e:
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False, message=f'ERROR::LLMManager.Generate:: {e} {type(format)} {format}'
+        success=False,
+        message=f'ERROR::LLMManager.Generate:: {e} {type(format)} {format}',
+        finished=True,
       )
 
   def __ModelExists(self, modelName: str):
@@ -111,7 +124,9 @@ class LLMManager:
       return True
     return False
 
-  async def GetEmbeddings(self, texts: List[str], model: str) -> List[List[float]]:
+  async def GetEmbeddings(
+    self, texts: List[str], model: str
+  ) -> List[List[float]]:
     """
     Get embeddings for a list of texts using your existing Ollama client class.
 
