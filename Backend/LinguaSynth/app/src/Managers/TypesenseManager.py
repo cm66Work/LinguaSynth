@@ -5,6 +5,7 @@ from Utils.ServerResponse import ServerResponse, ServerResponseObject
 import requests
 from typesense.client import Client
 from typesense.types.collection import CollectionCreateSchema, CollectionSchema
+from typesense.types.document import DocumentSchema
 
 OLLAMA_HOST = 'http://ollama:11434'
 
@@ -103,6 +104,22 @@ class TypesenseManager:
       schema['enable_nested_fields'] = True
 
       try:
+        """ For objects in the schema we need to flatten them.
+            They can be accessed using . notation.
+            For example, address.buildingNumber, or person.name
+        """
+        schemaFields: list = []
+        for field in schema['fields']:
+          objectFields: list[dict] = field.get('fields', [])
+          if objectFields == []:
+            schemaFields.append(field)
+          else:
+            # we have a nested object.
+            for objectField in objectFields:
+              objectField['name'] = field['name'] + '.' + objectField['name']  # type: ignore
+              schemaFields.append(objectField)
+        schema['fields'] = schemaFields
+
         # create the schema
         result = self.client.collections.create(schema)
         return self.serverResponseUtil.GenerateServerResponse(
@@ -117,7 +134,6 @@ class TypesenseManager:
           finished=True,
         )
     except Exception as e:
-      print(e, '/n')
       return self.serverResponseUtil.GenerateServerResponse(
         success=False,
         message=f'{e} Failed to cast schema to Typesense schema type',
