@@ -31,13 +31,11 @@ class ProcessNewUploadDocumentsPanel(Panel):
         mins, secs = divmod(int(remaining), 60)
         progressbarMessage = f'{responseMessage} | etr: {mins:02d}:{secs:02d}'
 
-      # print(progressbarMessage)
       self.UpdateProgressbar(processedDocuments, totalDocuments, progressbarMessage)
 
     processor = ProcessUploadedDocuments(
       self.serverAddress, self.categoryName, progressBarCallback=UpdateProgressbar
     )
     result, statusCode = processor.ProcessFiles(startTime=time.time())
-    # print('Final:', result, statusCode)
 
     self.CreateMessageBox(f'Result:{str(result)}', self.ErrorType.Info)

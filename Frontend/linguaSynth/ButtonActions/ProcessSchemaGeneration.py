@@ -32,8 +32,6 @@ class ProcessSchemaGenerationButtonAction:
         if line:
           try:
             data = json.loads(line.decode('utf-8'))
-            print(f'{data} \n\n')
-            # print('Stream update:', data)
             totalDocuments = int(data['Data'].get('total_documents_to_process', 1))
             processedDocuments = int(data['Data'].get('processed_document_count', 0))
             totalSchemaTags = int(data['Data'].get('total_schema_tags', 1))
@@ -55,4 +53,4 @@ class ProcessSchemaGenerationButtonAction:
           except json.JSONDecodeError:
             print('Invalid JSON chunk:', line)
 
-      return 'Completed', schemaJsonString
+      return 'Completed', schemaJsonString  # type: ignore
