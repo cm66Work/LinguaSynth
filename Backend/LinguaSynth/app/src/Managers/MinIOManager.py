@@ -1,6 +1,6 @@
 import io
 from minio import Minio
-from Utils.LogUtils import LogUtil  # type: ignore
+from Utils.LogUtils import ErrorTypes, LogUtil  # type: ignore
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
 
@@ -73,7 +73,9 @@ class MinIOManager:
 
     """
     self.log.GenerateLogMessage(f'Deleting bucket {name}...')
-    if self.BucketExists(name) and len(list(self.client.list_objects(name))) <= 0:
+    if (
+      self.BucketExists(name) and len(list(self.client.list_objects(name))) <= 0
+    ):
       self.client.remove_bucket(name)
       return True
     return False
@@ -112,7 +114,9 @@ class MinIOManager:
     Deletes the file from the bucket if the bucket and the file exist.
     Returns False if bucket or file does not exist.
     """
-    self.log.GenerateLogMessage(f'Deleting file: {fileName} from bucket: {bucketName}...')
+    self.log.GenerateLogMessage(
+      f'Deleting file: {fileName} from bucket: {bucketName}...'
+    )
     if not self.FileExistsInBucket(bucketName, fileName):
       return False
     try:
@@ -130,10 +134,16 @@ class MinIOManager:
     Returns a FileUploadResponse dataClass after.
     """
     # fileName = f'{fileName.split(".")[0]}.txt'
-    self.log.GenerateLogMessage(f'Uploading file: {fileName} to bucket: {bucketName}...')
+    self.log.GenerateLogMessage(
+      f'Uploading file: {fileName} to bucket: {bucketName}...'
+    )
     if not self.BucketExists(bucketName):
+      currentResponse = ServerResponseObject()
+      currentResponse.Message = f'Bucket: {bucketName} does not exists.'
       return self.serverResponseUtil.GenerateServerResponse(
-        False, message=f'ERROR::UploadFileContents:: Bucket:{bucketName} dose not exists'
+        currentResponse,
+        errorType=ErrorTypes.Error,
+        className=__class__.__name__,
       )
     if isinstance(fileContents, str):
       data_bytes = fileContents.encode('utf-8')  # convert to bytes
@@ -149,14 +159,16 @@ class MinIOManager:
       content_type='text/plain',
     )
     stat = self.client.stat_object(bucketName, fileName)
+    currentResponse = ServerResponseObject()
+    currentResponse.Success = True
+    currentResponse.Message = ''
+    currentResponse.Data = {
+      'bucket_name': stat.bucket_name,
+      'object_name': stat.object_name,
+      'file_path': f'{stat.bucket_name}/{stat.object_name}',
+    }
     return self.serverResponseUtil.GenerateServerResponse(
-      True,
-      message='',
-      extraData={
-        'bucket_name': stat.bucket_name,
-        'object_name': stat.object_name,
-        'file_path': f'{stat.bucket_name}/{stat.object_name}',
-      },
+      currentResponse,
     )
 
   # ------------- File Downloading

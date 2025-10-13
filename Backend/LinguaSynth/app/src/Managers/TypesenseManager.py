@@ -1,13 +1,11 @@
 import json
-from typing import Any, cast
+from typing import cast
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 import requests
 from typesense.client import Client
 from typesense.types.collection import CollectionCreateSchema, CollectionSchema
 from typesense.types.document import DocumentSchema
-
-OLLAMA_HOST = 'http://ollama:11434'
 
 
 class TypesenseManager:
@@ -79,6 +77,8 @@ class TypesenseManager:
     """
     # try to cast the given schema to the Typesense schema.
     # This creates a nice layer of separation between the interface and the manager.
+    currentResponse = ServerResponseObject()
+    currentResponse.Data = {'result': {}}
     try:
       validationResponse = self.__SchemaCreationValidation(schemaName, force)
       # run validation checks
@@ -90,12 +90,12 @@ class TypesenseManager:
         try:
           self.client.collections[schemaName].delete()
         except Exception as e:
+          currentResponse.Message = f'Failed to delete schema: {e}'
+          currentResponse.Finished = True
           return self.serverResponseUtil.GenerateServerResponse(
-            success=False,
-            message=f'Failed to delete schema: {e}',
-            errorType=ErrorTypes.Exception,
-            className=self.__class__.__name__,
-            finished=True,
+            currentResponse,
+            errorType=ErrorTypes.Error,
+            className=__class__.__name__,
           )
 
       schema = json.loads(newSchema)
@@ -122,24 +122,26 @@ class TypesenseManager:
 
         # create the schema
         result = self.client.collections.create(schema)
-        return self.serverResponseUtil.GenerateServerResponse(
-          success=True, extraData={'result': result}, finished=True
-        )
+        currentResponse.Success = True
+        currentResponse.Data['result'] = result
+        return self.serverResponseUtil.GenerateServerResponse(currentResponse)
       except Exception as e:
+        currentResponse.Message = f'Failed to create schema: {e}'
+        currentResponse.Finished = True
         return self.serverResponseUtil.GenerateServerResponse(
-          success=False,
-          message=f'Failed to create schema: {e}',
-          errorType=ErrorTypes.Exception,
-          className=self.__class__.__name__,
-          finished=True,
+          currentResponse,
+          errorType=ErrorTypes.Error,
+          className=__class__.__name__,
         )
     except Exception as e:
+      currentResponse.Message = (
+        f'Failed to cast schema to typesense schema: {e}'
+      )
+      currentResponse.Finished = True
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'{e} Failed to cast schema to Typesense schema type',
+        currentResponse,
         errorType=ErrorTypes.Error,
-        className=self.__class__.__name__,
-        finished=True,
+        className=__class__.__name__,
       )
 
   def __SchemaCreationValidation(
@@ -147,33 +149,26 @@ class TypesenseManager:
     schemaName: str,
     force: bool = False,
   ):
-    validationResponse = self.serverResponseUtil.GenerateServerResponse(
-      success=False,
-      message='',
-      extraData={},
-      className=__class__.__name__,
-      finished=False,
+    currentResponse = self.serverResponseUtil.GenerateServerResponse(
+      ServerResponseObject(),
     )
     if len(schemaName) <= 0:
-      validationResponse.Message = (
+      currentResponse.Message = (
         'Entered schema name is empty. Canceling upload of new schema.'
       )
-      validationResponse.Success = False
-      validationResponse.Finished = True
-      return validationResponse
+      currentResponse.Finished = True
+      return currentResponse
 
     if self.SchemaExists(schemaName) and not force:
-      validationResponse.Success = False
-      validationResponse.Finished = True
-      validationResponse.Message = 'Schema already exists. Schema overriding is currently protected. Set force to True to disable override protection.'
-      return validationResponse
+      currentResponse.Finished = True
+      currentResponse.Message = 'Schema already exists. Schema overriding is currently protected. Set force to True to disable override protection.'
+      return currentResponse
     elif self.SchemaExists(schemaName) and force:
-      validationResponse.Success = True
-      validationResponse.Finished = False
-      validationResponse.Message = 'Forcing override of existing schema.'
-      return validationResponse
+      currentResponse.Success = True
+      currentResponse.Message = 'Forcing override of existing schema.'
+      return currentResponse
 
-    return validationResponse
+    return currentResponse
 
   def IndexDocuments(self, collectionName: str, documentString: str):
     """
@@ -183,28 +178,28 @@ class TypesenseManager:
         documents (str): document to upload.
           # Format = [{id, schema files...},]
     """
+    currentResponse = self.serverResponseUtil.GenerateServerResponse(
+      ServerResponseObject(),
+    )
+    currentResponse.Data = {'result': None}
     try:
       docs = json.loads(documentString)
       docs = cast(DocumentSchema, docs)
 
-      # result = self.client.collections[collection].documents.import_(
-      #   documents=docs, import_parameters={'action': 'upsert'}
-      # )
-      # document = json.loads(docs)
       result = self.client.collections[collectionName].documents.upsert(docs)
       self.serverResponseUtil.GenerateLogMessage(
         f'loaded: {self.client.collections[collectionName].retrieve()}'
       )
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=True,
-        message=f'{result} documents uploaded successfully. {self.client.collections[collectionName].documents.export()}',
-        extraData={'result': result},
-      )
+      currentResponse.Message = f'{result} documents uploaded successfully. {self.client.collections[collectionName].documents.export()}'
+      currentResponse.Data['result'] = result
+      return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except Exception as e:
+      currentResponse.Message = f'Failed to index document: {e}'
+      currentResponse.Finished = True
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'Failed to index document. {e} a',
+        currentResponse,
         errorType=ErrorTypes.Error,
+        className=__class__.__name__,
       )
 
   def NewQuery(self, collectionName: str, query, minHits=2, maxHits=20):
@@ -222,6 +217,12 @@ class TypesenseManager:
           confidence (key: int): range from -1 to 1 based on how confident the system is about the response.
           documents (key list[str]): Names of documents found.
     """
+    currentResponse = ServerResponseObject()
+    currentResponse.Data = {
+      'responseMessage': None,
+      'confidence': None,
+      'documents': None,
+    }
     try:
       query = json.loads(query)
       results = self.client.collections[collectionName].documents.search(query)
@@ -249,21 +250,20 @@ class TypesenseManager:
         responseMessage = f'Found {n} documents.'
         confidence = 1
 
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=True,
-        message=f'Found {len(hits)} related to user query.',
-        extraData={
-          'responseMessage': responseMessage,
-          'confidence': confidence,
-          'documents': hits,
-        },
-      )
+      currentResponse.Success = True
+      currentResponse.Message = f'Found {len(hits)} related to user query.'
+      currentResponse.Data['responseMessage'] = responseMessage
+      currentResponse.Data['confidence'] = confidence
+      currentResponse.Data['documents'] = hits
+
+      return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except Exception as e:
+      currentResponse.Message = f'{e}'
+      currentResponse.Finished = True
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'{e}',
+        currentResponse,
         errorType=ErrorTypes.Warning,
-        generateLog=False,
+        className=__class__.__name__,
       )
 
   # region Tools
@@ -275,18 +275,23 @@ class TypesenseManager:
 
   # region Asking questions
   def askQuery(self, collectionName: str, query) -> ServerResponseObject:
+    currentResponse = ServerResponseObject()
+    currentResponse.Data = {'result': None}
     try:
       query = json.loads(query)
-      result = self.client.collections[collectionName].documents.search(query)
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=True, message='testing', extraData={'result': result}
-      )
+      currentResponse.Data['result'] = self.client.collections[
+        collectionName
+      ].documents.search(query)
+      currentResponse.Success = True
+      currentResponse.Message = 'testing'
+      return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except Exception as e:
+      currentResponse.Message = f'Failed to answer user question: {e}'
+      currentResponse.Finished = True
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'Failed to answer user question {e}',
-        extraData={},
+        currentResponse,
         errorType=ErrorTypes.Exception,
+        className=__class__.__name__,
       )
 
   # endregion
@@ -299,9 +304,11 @@ class TypesenseManager:
       'Content-Type': 'application/json',
     }
     resp = requests.get(url, headers=headers, timeout=60)
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=resp.ok, message=str(resp.content)
-    )
+    currentResponse = ServerResponseObject()
+    currentResponse.Success = resp.ok
+    currentResponse.Message = str(resp.content)
+
+    return self.serverResponseUtil.GenerateServerResponse(currentResponse)
 
   def LoadModel(self):
     self.nlModelId = 'default-search'
@@ -320,6 +327,7 @@ class TypesenseManager:
     resp = requests.post(
       url=f'{self.typesenseURL}/nl_search_models', headers=headers, json=payload
     )
-    return self.serverResponseUtil.GenerateServerResponse(
-      success=resp.ok, message=str(resp.content)
-    )
+    currentResponse = ServerResponseObject()
+    currentResponse.Success = resp.ok
+    currentResponse.Message = str(resp.content)
+    return self.serverResponseUtil.GenerateServerResponse(currentResponse)

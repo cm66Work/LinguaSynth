@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, cast
 from ollama import Client, ResponseError
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
@@ -15,26 +15,22 @@ class LLMServerResponse(ServerResponse):
   def __init__(self, rootFolder: str, logBaseName: str):
     super().__init__(rootFolder, logBaseName)
 
-  def GenerateServerResponse(
+  def GenerateServerResponse(  # type: ignore
     self,
-    success: bool,
-    message: str = '',
+    currentResponse: LLMServerResponseObject,
     className: str = '',
     errorType: ErrorTypes = ErrorTypes.Ok,
-    extraData: dict = {},
     generateLog=True,
-    finished=False,
     response: str = '',
   ):
-    if generateLog or len(message) > 0:
-      self.GenerateLogMessage(message, className=className, errorType=errorType)
-    return LLMServerResponseObject(
-      Success=success,
-      Message=message,
-      Data=extraData,
-      Response=response,
-      Finished=finished,
+    super().GenerateServerResponse(
+      cast(ServerResponseObject, currentResponse),
+      className,
+      errorType,
+      generateLog,
     )
+    currentResponse.Response = response
+    return currentResponse
 
 
 class LLMManager:
@@ -43,7 +39,7 @@ class LLMManager:
     self.serverResponseUtil = LLMServerResponse('Ollama', 'ollama_log')
 
   # --- Pulling Images ---
-  async def PullModel(self, imageName: str) -> ServerResponseObject:
+  async def PullModel(self, imageName: str) -> LLMServerResponseObject:
     """
     Downloads the model if it exists on ollama's server.
 
@@ -53,16 +49,18 @@ class LLMManager:
     Returns:
         Returns a ServerResponseObject as the response.
     """
+    currentResponse = LLMServerResponseObject()
     try:
-      response = self.client.pull(imageName)
-      return self.serverResponseUtil.GenerateServerResponse(
-        success=True,
-        message='Pulled new ollama image.',
-        extraData={'response': response},
-      )
+      currentResponse.Success = True
+      currentResponse.Message = 'Pulled new ollama image.'
+      currentResponse.Data = {'response': self.client.pull(imageName)}
+      return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except ResponseError as e:
+      currentResponse.Message = f'{e}'
       return self.serverResponseUtil.GenerateServerResponse(
-        False, f'ERROR::LLMManager.PullImage:: {e}'
+        currentResponse,
+        errorType=ErrorTypes.Error,
+        className=__class__.__name__,
       )
 
   # --- Generating answers ---
@@ -79,15 +77,22 @@ class LLMManager:
     Returns:
         Returns a ServerResponseObject as the response containing the generated answer.
     """
+    currentResponse = LLMServerResponseObject()
     if len(prompt) <= 0:
+      currentResponse.Message = 'prompt is empty.'
+      currentResponse.Finished = True
       return self.serverResponseUtil.GenerateServerResponse(
-        False, 'ERROR::LLMManager.Generate:: Prompt is empty.', finished=True
+        currentResponse,
+        errorType=ErrorTypes.Error,
+        className=__class__.__name__,
       )
     if len(model) <= 0:
+      currentResponse.Message = 'LLM model name is empty.'
+      currentResponse.Finished = True
       return self.serverResponseUtil.GenerateServerResponse(
-        False,
-        'ERROR::LLMManager.Generate:: LLM model name is empty.',
-        finished=True,
+        currentResponse,
+        errorType=ErrorTypes.Error,
+        className=__class__.__name__,
       )
 
     if not self.__ModelExists(model):
@@ -103,19 +108,25 @@ class LLMManager:
         result = self.client.generate(
           model=model, prompt=prompt, think=think, format=format
         )['response']
+      currentResponse.Success = True
+      currentResponse.Message = 'Response generated.'
+      currentResponse.Data = {'result': result}
+      currentResponse.Response = result
+
       return self.serverResponseUtil.GenerateServerResponse(
-        success=True,
-        message='response generated',
-        # extraData={'response': result['response']},
-        response=result,
-        extraData={'result': result},
+        currentResponse,
         generateLog=False,
       )
     except ResponseError as e:
+      currentResponse.Success = False
+      currentResponse.Message = f'{e} {type(format)} {format}'
+      currentResponse.Data = {'result': ''}
+      currentResponse.Response = ''
+      currentResponse.Finished = True
+
       return self.serverResponseUtil.GenerateServerResponse(
-        success=False,
-        message=f'ERROR::LLMManager.Generate:: {e} {type(format)} {format}',
-        finished=True,
+        currentResponse,
+        generateLog=False,
       )
 
   def __ModelExists(self, modelName: str):

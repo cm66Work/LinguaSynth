@@ -3,6 +3,7 @@ import os
 from typing import List
 from Managers.LLMManager import LLMManager, LLMServerResponseObject
 from Utils import JsonUtils
+from Utils.ServerResponse import ServerResponseObject
 # from jsonschema import validate, ValidationError
 
 # --- Constants ---
@@ -133,8 +134,12 @@ class LLM_Object:
     self.client.serverResponseUtil.GenerateLogMessage(
       messageString='new schema generated'
     )
+    currentResponse = LLMServerResponseObject()
+    currentResponse.Success = True
+    currentResponse.Message = 'Generated new Schema'
+    currentResponse.Response = json.dumps(schema)
     return self.client.serverResponseUtil.GenerateServerResponse(
-      success=True, message='Generated new schema', response=json.dumps(schema)
+      currentResponse
     )
 
   async def HandleContentSummarization(

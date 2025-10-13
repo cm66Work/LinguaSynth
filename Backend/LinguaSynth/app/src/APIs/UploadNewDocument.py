@@ -14,13 +14,15 @@ async def UploadNewDocument(
   content = (await file.read()).decode('utf-8')
   documentName = file.filename if file.filename is not None else 'tempt.txt'
   result = minioObject.UploadDocumentToStorageServer(
-    bucketName=f'{documentCategory}-new', content=content, documentName=documentName
+    bucketName=f'{documentCategory}-new',
+    content=content,
+    documentName=documentName,
   )
   if not result.Success:
     return result
 
-  return serverResponse.GenerateServerResponse(
-    success=True,
-    message=f'new document: {file.filename} uploaded.',
-    extraData={'result': result},
-  )
+  currentResponse = ServerResponseObject()
+  currentResponse.Success = True
+  currentResponse.Message = f'New document: {file.filename} uploaded.'
+  currentResponse.Data = {'result': result}
+  return serverResponse.GenerateServerResponse(currentResponse)

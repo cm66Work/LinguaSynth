@@ -92,10 +92,10 @@ async def UserQuestion(
   )
   # print(questionResults)
   if not questionResults.Success or questionResults.Data == {}:
-    return serverResponse.GenerateServerResponse(
-      success=False,
-      message='failed to find information related to users question',
+    questionResults.Message = (
+      'Failed to find information related to users question.'
     )
+    return serverResponse.GenerateServerResponse(questionResults)
   questionResults = questionResults.Data
   document = questionResults.get('documents', [])
   # limit the amount of information the model gets fed.
@@ -191,14 +191,17 @@ async def UploadNewDocument(documentCategory: str, file: UploadFile):
 # is later used to indexing into Typesense.
 @app.post('/process-new-uploaded-documents/')
 async def ProcessNewDocuments(bucketRootName: str, resolution: int = 1):
-  return await APIs.ProcessNewDocuments.ProcessNewDocuments(
-    bucketRootName,
-    serverResponse,
-    minioObject,
-    llmObject,
-    postgresObject,
-    resolution,
-  )
+  async def EventStream():
+    async for response in APIs.ProcessNewDocuments.ProcessNewDocuments(
+      bucketRootName,
+      serverResponse,
+      minioObject,
+      llmObject,
+      postgresObject,
+      resolution,
+    ):
+      response = json.dumps(vars(response)) + '\n'
+      yield response
 
 
 # region Schema generation
@@ -219,17 +222,6 @@ async def SchemaGeneration(
       force: bool = False
       tagCompression:float = 0.25 : tag similarity matching for quote combining.
   """
-  # await APIs.GenerateSchemaVectorEmbeddings.SchemaGenerationVectorEmbeddings(
-  #   bucketRootName=bucketRootName,
-  #   sampleSize=sampleSize,
-  #   serverResponse=serverResponse,
-  #   minioObject=minioObject,
-  #   llmObject=llmObject,
-  #   resolution=resolution,
-  #   force=force,
-  #   tagCompression=tagCompression,
-  # )
-  # return
 
   async def EventStream():
     # Iterate over the inner async generator
@@ -244,7 +236,8 @@ async def SchemaGeneration(
       tagCompression=tagCompression,
     ):
       # Convert the yielded dict to JSON
-      yield json.dumps(response) + '\n'
+      response = json.dumps(vars(response)) + '\n'
+      yield response
 
   return StreamingResponse(EventStream(), media_type='application/json')
 

@@ -4,7 +4,7 @@ import math
 
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
-from Utils.ServerResponse import ServerResponse
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
 from Utils import JsonUtils
 
@@ -28,33 +28,27 @@ async def SchemaGeneration(
       force: bool = False
       tagCompression:float = 0.25 : tag similarity matching for quote combining.
   """
-  returnedDataObject = {
+  extraData = {
     'total_documents_to_process': 0,
     'processed_document_count': 0,
     'total_schema_tags': 0,
     'processed_schema_tags': 0,
     'schema_json_string': '',
   }
-  currentResponse = serverResponse.GenerateServerResponse(
-    success=True,
-    message='',
-    extraData=returnedDataObject,
-    finished=False,
-  )
 
-  currentResponse.Message = 'Processing...'
-  yield vars(currentResponse)
+  currentResponse = ServerResponseObject()
+  currentResponse.Data = extraData
+  currentResponse.Message = 'Processing....'
+  yield serverResponse.GenerateServerResponse(currentResponse)
 
   if len(bucketRootName) <= 0:
-    yield vars(
-      serverResponse.GenerateServerResponse(
-        success=False,
-        message='Bucket root name has not been provided',
-        extraData=returnedDataObject,
-        errorType=ErrorTypes.Error,
-        className='main',
-        finished=True,
-      )
+    currentResponse.Success = False
+    currentResponse.Message = 'Bucket root name has not been provided.'
+    currentResponse.Finished = True
+    yield serverResponse.GenerateServerResponse(
+      currentResponse,
+      errorType=ErrorTypes.Error,
+      className='main',
     )
     return
 
@@ -64,24 +58,25 @@ async def SchemaGeneration(
     minioObject.GetNumberOfObjectsInBucket(bucketName) / sampleSize
   )
   if documentsToSkip <= 0:
-    yield vars(
-      serverResponse.GenerateServerResponse(
-        success=False,
-        message=f'No documents loaded into bucket: {bucketName}',
-        extraData=returnedDataObject,
-        errorType=ErrorTypes.Warning,
-        className='main',
-        finished=True,
-      )
+    currentResponse.Success = False
+    currentResponse.Message = f'no documents loading into bucket: {bucketName}.'
+    currentResponse.Finished = True
+    currentResponse.Data = extraData
+    yield serverResponse.GenerateServerResponse(
+      currentResponse,
+      errorType=ErrorTypes.Warning,
+      className='main',
     )
     return
 
   # Grab a random number of files based on the given random number.
   # - random spread against the total number of files.
-  returnedDataObject['total_documents_to_process'] = sampleSize
-  returnedDataObject['processed_document_count'] = 0
-  currentResponse.Message = f'Identifying tags from: {sampleSize} document(s) ...'
-  yield vars(currentResponse)
+  extraData['total_documents_to_process'] = sampleSize
+  extraData['processed_document_count'] = 0
+  currentResponse.Message = (
+    f'Identifying tags from: {sampleSize} document(s) ...'
+  )
+  yield currentResponse
 
   documentTags: list[dict[str, str]] = []
   skippedDocuments = documentsToSkip
@@ -109,35 +104,37 @@ async def SchemaGeneration(
     # print(f'\ndocumentTags: {documentTags}')
     documentTags = reduce_tags_fuzzy(documentTags, 0.4)
 
-    returnedDataObject['processed_document_count'] += 1
+    extraData['processed_document_count'] += 1
     currentResponse.Message = (
       f'Processing... | Identified {len(documentTags)} unique tags...'
     )
-    yield vars(currentResponse)
+    yield currentResponse
 
   # Parse the tags against the values / quotes to get their json types.
   # - Our schema object will handle the conversion to Typesense.
 
-  returnedDataObject['processed_schema_tags'] = 0
-  returnedDataObject['total_schema_tags'] = len(documentTags)
+  extraData['processed_schema_tags'] = 0
+  extraData['total_schema_tags'] = len(documentTags)
   currentResponse.Message = 'Processing Tags...'
-  yield vars(currentResponse)
+  yield currentResponse
 
   processedTags: list[dict[str, str]] = []
   for tag in documentTags:
     processedTags.extend(await _GenerateJsonTypeForTag(tag, llmObject))
-    currentResponse.Message = f'Processing {len(processedTags)}/{len(tag)} Tags...'
+    currentResponse.Message = (
+      f'Processing {len(processedTags)}/{len(tag)} Tags...'
+    )
 
-    returnedDataObject['processed_schema_tags'] += 1
-    yield vars(currentResponse)
+    extraData['processed_schema_tags'] += 1
+    yield currentResponse
 
   # Return the final Generated Schema for user review
   # -- Give users the option to check what was generated,
   # -- since we for sure need to remove random AI BS
 
   currentResponse.Message = f'Finished Processing {len(processedTags)} Tags...'
-  returnedDataObject['schema_json_string'] = json.dumps(processedTags)
-  yield vars(currentResponse)
+  extraData['schema_json_string'] = json.dumps(processedTags)
+  yield currentResponse
 
 
 async def _GenerateJsonTypeForTag(tag: dict[str, str], llmObject: LLM_Object):
@@ -199,7 +196,9 @@ async def __GenerateTagsFromDocument(
     existingTags.extend(__flatten_tags(generated['matches']))
   resolution -= 1
   if resolution > 0:
-    return await __GenerateTagsFromDocument(content, resolution, llmObject, existingTags)
+    return await __GenerateTagsFromDocument(
+      content, resolution, llmObject, existingTags
+    )
 
   return existingTags
 
