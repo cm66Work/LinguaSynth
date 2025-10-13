@@ -26,9 +26,7 @@ class Typesense_Object:
   # def CreateNewCollection(self):
 
   # TODO:: Convert this so we can process multiple index multiple files at a time.
-  def IndexFileIntoCollection(
-    self, document: dict[str, Any], collectionName: str
-  ):
+  def IndexFileIntoCollection(self, document: str, collectionName: str):
     # if not self.collectionValid:
     # self.__ValidateCollectionExistence(collectionName)
     # insert the id into the summarized file

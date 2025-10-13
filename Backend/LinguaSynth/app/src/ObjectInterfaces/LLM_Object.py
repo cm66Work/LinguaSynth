@@ -1,5 +1,6 @@
 import json
 import os
+from typing import List
 from Managers.LLMManager import LLMManager, LLMServerResponseObject
 from Utils import JsonUtils
 # from jsonschema import validate, ValidationError
@@ -8,6 +9,7 @@ from Utils import JsonUtils
 LLM_LIGHT_GENERATION_MODEL = 'gemma3:1b'  #'gemma3:1b-it-fp16'
 # LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
 LLM_HEAVY_GENERATION_MODEL = 'gemma3:12b'
+LLM_EMBEDDING_MODEL = 'embeddinggemma:300m'
 LLM_EXAMPLE_SCHEMA_FIELDS = {
   'fields': [
     {'name': 'company_name', 'type': 'string'},
@@ -28,12 +30,12 @@ class LLM_Object:
   def __init__(self):
     address = os.getenv('OLLAMA_ADDRESS', 'ollama')
     port = os.getenv('OLLAMA_PORT', '11434')
-    self.client = LLMManager(
-      hostAddress=f'{address}:{port}', model=LLM_LIGHT_GENERATION_MODEL
-    )
+    self.client = LLMManager(hostAddress=f'{address}:{port}')
 
   async def Generate(self, prompt: str, think=False) -> LLMServerResponseObject:
-    return await self.client.Generate(model=LLM_HEAVY_GENERATION_MODEL, prompt=prompt)
+    return await self.client.Generate(
+      model=LLM_HEAVY_GENERATION_MODEL, prompt=prompt
+    )
 
   # --- Handlers ---
   async def HandleSchemaGeneration(
@@ -158,7 +160,7 @@ class LLM_Object:
       Include as much single word detail as possible only.
       For each filed name match your result to its associated type. 
       """,
-      format=schemaFields,
+      # format=schemaFields,
     )
     return result
 
@@ -167,3 +169,14 @@ class LLM_Object:
       model=LLM_LIGHT_GENERATION_MODEL, prompt=prompt, format=format
     )
     return result
+
+  async def GenerateV3(self, prompt: str, format={}) -> LLMServerResponseObject:
+    result = await self.client.Generate(
+      model=LLM_HEAVY_GENERATION_MODEL, prompt=prompt, format=format
+    )
+    return result
+
+  async def GetEmbeddingsForContent(
+    self, texts: List[str]
+  ) -> List[List[float]]:
+    return await self.client.GetEmbeddings(texts, LLM_EMBEDDING_MODEL)
