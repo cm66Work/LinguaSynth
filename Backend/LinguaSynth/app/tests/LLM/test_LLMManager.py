@@ -21,7 +21,7 @@ def Manager():
   address = os.getenv('OLLAMA_ADDRESS', 'ollama')
   port = os.getenv('OLLAMA_PORT', '11434')
 
-  return LLMManager(hostAddress=f'{address}:{port}', model='')
+  return LLMManager(hostAddress=f'{address}:{port}')
 
 
 # --- Pulling Images ---
@@ -45,13 +45,17 @@ async def test_generate_with_existing_model_and_prompt(Manager, existing_model):
 
 
 @pytest.mark.asyncio
-async def test_generate_with_none_existing_model_and_prompt(Manager, nonexistent_model):
+async def test_generate_with_none_existing_model_and_prompt(
+  Manager, nonexistent_model
+):
   result = await Manager.Generate(nonexistent_model, 'why is the sky blue?')
   assert not result.Success
 
 
 @pytest.mark.asyncio
-async def test_generate_with_existing_model_and_no_prompt(Manager, existing_model):
+async def test_generate_with_existing_model_and_no_prompt(
+  Manager, existing_model
+):
   result = await Manager.Generate(existing_model, '')
   assert not result.Success
 
