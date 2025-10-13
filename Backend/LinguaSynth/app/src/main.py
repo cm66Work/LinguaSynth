@@ -1,13 +1,10 @@
 import json
-from typing import Any
-
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from fastapi import FastAPI, UploadFile
-from Utils.ServerResponse import ServerResponse, ServerResponseObject
-from Utils.LogUtils import ErrorTypes
+from Utils.ServerResponse import ServerResponse
 from Utils import JsonUtils
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
@@ -37,43 +34,43 @@ async def HealthCheck():
   return {'message': 'Healthy'}
 
 
-async def __HandleTypesenseIndexing(
-  schemaName: str, content: dict[str, Any]
-) -> ServerResponseObject:
-  # index the file into typesense.
-  return typesenseObject.IndexFileIntoCollection(
-    document=content,
-    collectionName=schemaName,
-  )
+# async def __HandleTypesenseIndexing(
+#   schemaName: str, content: dict[str, Any]
+# ) -> ServerResponseObject:
+#   # index the file into typesense.
+#   return typesenseObject.IndexFileIntoCollection(
+#     document=content,
+#     collectionName=schemaName,
+#   )
 
 
-async def __HandlePostgresIndexing(
-  documentName: str, summarizedDocumentName: str
-) -> ServerResponseObject:
-  postgresResults = await postgresObject.UploadFilePathsToDataBase(
-    documentName, summarizedDocumentName
-  )
-  return postgresResults
+# async def __HandlePostgresIndexing(
+#   documentName: str, summarizedDocumentName: str
+# ) -> ServerResponseObject:
+#   postgresResults = await postgresObject.UploadFilePathsToDataBase(
+#     documentName, summarizedDocumentName
+#   )
+#   return postgresResults
 
 
-def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
-  """
-  Validates to see if typesense knows about the schema
+# def __HandleSchemaValidation(schema: str) -> ServerResponseObject:
+#   """
+#   Validates to see if typesense knows about the schema
 
-  Returns:
-    Server Response Object with the valid schema being loaded into Data['schema']
-  """
-  result = typesenseObject.GetSchema(schema)
-  if result is None:
-    return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
-      success=False,
-      message='No schema loaded with that name.',
-      errorType=ErrorTypes.Info,
-      extraData={},
-    )
-  return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
-    success=True, message=f'{schema} is loaded.', extraData={'schema': result}
-  )
+#   Returns:
+#     Server Response Object with the valid schema being loaded into Data['schema']
+#   """
+#   result = typesenseObject.GetSchema(schema)
+#   if result is None:
+#     return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
+#       success=False,
+#       message='No schema loaded with that name.',
+#       errorType=ErrorTypes.Info,
+#       extraData={},
+#     )
+#   return typesenseObject.client.serverResponseUtil.GenerateServerResponse(
+#     success=True, message=f'{schema} is loaded.', extraData={'schema': result}
+#   )
 
 
 # endregion
@@ -126,7 +123,10 @@ async def UserQuestion(
 
 
 async def GenerateQuery(searchSchema: str, userQuestion: str):
-  schema = json.loads(typesenseObject.GetSchema(searchSchema))
+  schema = typesenseObject.GetSchema(searchSchema)
+  if schema is None:
+    return []
+  schema = json.loads(str(schema))
 
   schemaFields = schema['fields']  # type: ignore
   # only need the field names and types for the query generation.
