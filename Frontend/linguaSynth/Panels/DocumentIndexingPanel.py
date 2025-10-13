@@ -8,9 +8,9 @@ class DocumentIndexingPanel(Panel):
     self,
     serverAddress,
     categoryName,
-    progressbar: TextProgressBar,
+    progressbarCallback: TextProgressBar,
   ):
-    super().__init__(serverAddress, categoryName, progressbar)
+    super().__init__(serverAddress, categoryName, progressbarCallback)
 
   def StartIndexingDocuments(self):
     if not self.serverAddress or not self.categoryName:
