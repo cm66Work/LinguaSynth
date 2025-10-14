@@ -187,11 +187,12 @@ class TypesenseManager:
       docs = cast(DocumentSchema, docs)
 
       result = self.client.collections[collectionName].documents.upsert(docs)
-      self.serverResponseUtil.GenerateLogMessage(
-        f'loaded: {self.client.collections[collectionName].retrieve()}'
-      )
-      currentResponse.Message = f'{result} documents uploaded successfully. {self.client.collections[collectionName].documents.export()}'
-      currentResponse.Data['result'] = result
+      # self.serverResponseUtil.GenerateLogMessage(
+      #   f'loaded: {self.client.collections[collectionName].retrieve()}'
+      # )
+      currentResponse.Message = 'documents uploaded successfully.'
+      currentResponse.Success = True
+      # currentResponse.Data['result'] = result
       return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except Exception as e:
       currentResponse.Message = f'Failed to index document: {e}'
@@ -330,4 +331,13 @@ class TypesenseManager:
     currentResponse = ServerResponseObject()
     currentResponse.Success = resp.ok
     currentResponse.Message = str(resp.content)
+    return self.serverResponseUtil.GenerateServerResponse(currentResponse)
+
+  def DocumentSearch(self, collectionName: str, resultsPerPage: int = 50):
+    result = self.client.collections[collectionName].documents.search(
+      {'q': '*', 'per_page': resultsPerPage}  # type: ignore
+    )
+    currentResponse = ServerResponseObject()
+    currentResponse.Success = True
+    currentResponse.Data = {'documents': result}
     return self.serverResponseUtil.GenerateServerResponse(currentResponse)

@@ -90,3 +90,6 @@ class Typesense_Object:
     # we tried x times and it still did not work.
     result.Data.update({'retires': 'max number of retires hit.'})
     return result
+
+  def DocumentSearch(self, collectionName: str):
+    return self.client.DocumentSearch(collectionName, 50)
