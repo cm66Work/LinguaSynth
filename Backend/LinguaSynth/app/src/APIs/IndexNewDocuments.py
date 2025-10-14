@@ -61,6 +61,7 @@ async def IndexNewDocuments(
 
   ## for each file -> for each paragraph,
   for document in minioObject.GetObjectsInBucket(processedDocumentsBucketName):
+    print('\n document')
     if document.object_name is None:
       currentResponse.Message = (
         f'Failed to get content form bucket {processedDocumentsBucketName}'
@@ -93,6 +94,7 @@ async def IndexNewDocuments(
       )
 
       currentResponse.Message = result.Message
+      currentResponse.Success = result.Success
       yield serverResponse.GenerateServerResponse(currentResponse)
 
     except Exception as e:
@@ -102,6 +104,12 @@ async def IndexNewDocuments(
     # -- if it fails then we add it to a list, if it succeeds then we migrate the document to
     # -- a new bucket in minio os we do not index it again.
     # --- Update the postgres entry for that document so wen can keep track of it.
+  currentResponse.Finished = True
+  if currentResponse.Success:
+    currentResponse.Message = 'finished indexing new documents'
+  else:
+    currentResponse.Message = 'Failed to index documents'
+  yield serverResponse.GenerateServerResponse(currentResponse)
 
 
 async def GenerateDocument(
