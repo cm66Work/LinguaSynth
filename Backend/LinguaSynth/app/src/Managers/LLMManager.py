@@ -51,9 +51,10 @@ class LLMManager:
     """
     currentResponse = LLMServerResponseObject()
     try:
+      response = self.client.pull(imageName)
       currentResponse.Success = True
       currentResponse.Message = 'Pulled new ollama image.'
-      currentResponse.Data = {'response': self.client.pull(imageName)}
+      currentResponse.Data = {'response': response}
       return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except ResponseError as e:
       currentResponse.Message = f'{e}'
