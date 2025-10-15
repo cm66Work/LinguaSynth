@@ -1,12 +1,76 @@
+from ctypes import cast
 import difflib
 import json
 import math
 
 from ObjectInterfaces.MinIO_Object import MinIO_Object
-from ObjectInterfaces.LLM_Object import LLM_Object
+from ObjectInterfaces.LLM_Object import (
+  EmbeddingVectorSchemaGenerator,
+  LLM_Object,
+)
+from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
 from Utils import JsonUtils
+
+
+async def SchemaGenerationV2(
+  minioObject: MinIO_Object,
+  llmObject: LLM_Object,
+  typesenseObject: Typesense_Object,
+  serverResponse: ServerResponse,
+):
+  schemaGenerator: EmbeddingVectorSchemaGenerator = (
+    EmbeddingVectorSchemaGenerator(llmObject, typesenseObject)
+  )
+  currentResponse = serverResponse.GenerateServerResponse(
+    ServerResponseObject()
+  )
+  newSchema = await __ProcessAllDocumentsInBucket(minioObject, schemaGenerator)
+  currentResponse.Data['schema'] = newSchema
+  currentResponse.Message = f'New schema generated: {newSchema["name"]}'  # type: ignore
+  yield serverResponse.GenerateServerResponse(currentResponse)
+
+
+async def __ProcessAllDocumentsInBucket(
+  minioObject: MinIO_Object, schemaGenerator: EmbeddingVectorSchemaGenerator
+):
+  bucketName = 'baseflow-summarized'
+  schemaTemplate = {
+    'name': 'default',
+    'fields': [
+      {'name': 'title', 'type': 'string'},
+      {'name': 'author', 'type': 'string'},
+    ],
+  }
+  newSchema = None
+  for document in minioObject.GetObjectsInBucket(bucketName):
+    if document.object_name is None:
+      continue
+    documentContent = minioObject.GetContentOfBucketObject(
+      bucketName, document.object_name
+    ).Data['content']
+    if newSchema is None:
+      newSchema = schemaTemplate
+    newSchema = await schemaGenerator.ReprocessSchema(
+      schemaTemplate,
+      documentContent,
+    )
+  # return result
+  # if newSchema is not None:
+  #   newSchema = await schemaGenerator.deduplicate_fields(
+  #     newSchema, threshold=0.96
+  #   )
+
+  # newSchema = {
+  #   'name': schemaTemplate.get('name', 'auto_generated_schema'),
+  #   'fields': newSchema,
+  # }
+
+  return newSchema
+
+
+## ------------------
 
 
 async def SchemaGeneration(
