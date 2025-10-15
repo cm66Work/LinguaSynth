@@ -91,15 +91,21 @@ async def SchemaGeneration(
 
   async def EventStream():
     # Iterate over the inner async generator
-    async for response in APIs.GenerateSchema.SchemaGeneration(
-      bucketRootName=bucketRootName,
-      sampleSize=sampleSize,
-      serverResponse=serverResponse,
-      minioObject=minioObject,
-      llmObject=llmObject,
-      resolution=resolution,
-      force=force,
-      tagCompression=tagCompression,
+    # async for response in APIs.GenerateSchema.SchemaGeneration(
+    #   bucketRootName=bucketRootName,
+    #   sampleSize=sampleSize,
+    #   serverResponse=serverResponse,
+    #   minioObject=minioObject,
+    #   llmObject=llmObject,
+    #   resolution=resolution,
+    #   force=force,
+    #   tagCompression=tagCompression,
+    # ):
+    #   # Convert the yielded dict to JSON
+    #   response = json.dumps(vars(response)) + '\n'
+    #   yield response
+    async for response in APIs.GenerateSchema.SchemaGenerationV2(
+      minioObject, llmObject, typesenseObject, serverResponse
     ):
       # Convert the yielded dict to JSON
       response = json.dumps(vars(response)) + '\n'

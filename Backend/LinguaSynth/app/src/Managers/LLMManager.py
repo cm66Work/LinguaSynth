@@ -29,7 +29,6 @@ class LLMServerResponse(ServerResponse):
       errorType,
       generateLog,
     )
-    currentResponse.Response = response
     return currentResponse
 
 
@@ -115,8 +114,7 @@ class LLMManager:
       currentResponse.Response = result
 
       return self.serverResponseUtil.GenerateServerResponse(
-        currentResponse,
-        generateLog=False,
+        currentResponse, generateLog=False
       )
     except ResponseError as e:
       currentResponse.Success = False
@@ -126,8 +124,7 @@ class LLMManager:
       currentResponse.Finished = True
 
       return self.serverResponseUtil.GenerateServerResponse(
-        currentResponse,
-        generateLog=False,
+        currentResponse, generateLog=False
       )
 
   def __ModelExists(self, modelName: str):
