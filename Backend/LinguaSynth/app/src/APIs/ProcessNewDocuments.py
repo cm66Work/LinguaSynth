@@ -1,6 +1,10 @@
+import json
+import re
+from typing import Any, cast
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
+from Utils import JsonUtils
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
 
@@ -78,11 +82,12 @@ async def ProcessNewDocuments(
     originalContent = result.Data['content']
     summarizedDocumentContent = await SummarizeDocument(
       content=originalContent,
-      context=f'{bucketRootName} and {document.object_name}',
+      context=f'folder name: {bucketRootName}, file name:{document.object_name}',
       resolution=resolution,
       minioObject=minioObject,
       llmObject=llmObject,
     )
+    print(f'SummarizedContent: {summarizedDocumentContent}')
     if len(summarizedDocumentContent) <= 0:
       serverResponse.GenerateLogMessage(
         messageString=f'document: {document.object_name} summarized to nothing, skipping file.',
@@ -141,7 +146,7 @@ async def SummarizeDocument(
   resolution: int,
   minioObject: MinIO_Object,
   llmObject: LLM_Object,
-) -> str:
+):
   """
   Summarizes the given content's paragraphs content by the resolution
   For example if a resolution of 2 is given, then each paragraph of the content will be summarized twice.
@@ -150,26 +155,39 @@ async def SummarizeDocument(
       content (str): The content to be summarized.
       resolution (int): The number of times the content gets summarized. Higher values result in smaller resulted document sizes but has higher data loss.
   """
-  summarizedContent = ''
+  summarizedContent = []
   for paragraph in content.split('\n\n'):
     if len(paragraph) <= 0:
       continue
-    summarizedParagraph = await llmObject.GenerateV2(
-      f"""paragraph: {paragraph} \n summarize the paragraph into 75% of its original length using the context: {context}. Only reply with the summarized content and do not write anything else or respond to this prompt."""
+    # summarizedParagraph = await llmObject.GenerateV2(
+    #   f"""paragraph: {paragraph} \n summarize the paragraph into 75% of its original length using the context: {context}. Only reply with the summarized content and do not write anything else or respond to this prompt."""
+    # )
+    llmResponse = await llmObject.GenerateV2(
+      f"""paragraph: {paragraph} \nUse the following context: {context}: To summarize and format the paragraph into a JSON list of {{"topic": "topic name", "quote":"quote from paragraph"}}. Respond with only valid JSON."""
     )
-    if not summarizedParagraph.Success:
+    if not llmResponse.Success:
       continue
-    summarizedContent = str().join(
-      [summarizedContent, '\n\n', summarizedParagraph.Response]
+    # strip and process into json
+    llmResponse = json.loads(
+      JsonUtils.TryConvertStringToJson(llmResponse.Response)
     )
+    for match in llmResponse['matches']:
+      try:
+        summarizedContent.append(
+          {'topic': match['topic'], 'quote': match['quote']}
+        )
+      except Exception:
+        pass
+
   # print(f'summarizedContent: {summarizedContent}')
 
-  resolution -= 1
-  if resolution > 0:
-    return await SummarizeDocument(
-      summarizedContent, context, resolution, minioObject, llmObject
-    )
-  return summarizedContent
+  # TODO: Add resolution back in.
+  # resolution -= 1
+  # if resolution > 0:
+  #   return await SummarizeDocument(
+  #     content, context, resolution, minioObject, llmObject, jsonParagraph
+  #   )
+  return json.dumps(summarizedContent, indent=0)
 
 
 async def UploadProcessedDocuments(
