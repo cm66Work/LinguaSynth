@@ -193,7 +193,7 @@ class TKWindow:
     self.documentIndexingPanel = DocumentIndexingPanel(
       serverAddress=self.serverAddress,
       categoryName=self.schemaCategoryName,
-      progressbarCallback=self.progressbar,
+      progressbar=self.progressbar,
     )
     self.documentIndexingPanel.StartIndexingDocuments()
 
