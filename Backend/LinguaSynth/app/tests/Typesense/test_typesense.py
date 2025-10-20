@@ -1,6 +1,9 @@
 import json
 import os
+from typing import cast
 from src.Managers.TypesenseManager import TypesenseManager
+from typesense.types.collection import CollectionCreateSchema, CollectionSchema
+from typesense.types.document import DocumentSchema
 import pytest
 
 # --- Constants ---
@@ -51,8 +54,10 @@ def Manager():
 
 # region Collection tests
 def test_create_collection(Manager, schema):
-  result = Manager.RecreateCollection(schema['name'], json.dumps(schema), True)
+  newSchema = cast(CollectionSchema, schema)
+  result = Manager.RecreateCollection(newSchema, True)
   assert result.Success
+  assert result.Finished
 
 
 # def test_file_indexing_and_searching(Manager, documents, schema):
