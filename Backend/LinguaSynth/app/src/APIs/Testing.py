@@ -42,7 +42,7 @@ class DocumentGenerator:
       # handle arrays
       base_type = field_type[:-2]
       prompt = f"From the following text, extract a list of {base_type} values for '{path}':\n\n{documentText}\n\nReturn as JSON list."
-      raw_output = (await self.llm.GenerateV2(prompt)).Response
+      raw_output = (await self.llm.Generate(prompt)).Response
       parsed = self._safe_parse_json(raw_output)
 
       if base_type == 'object':
@@ -73,7 +73,7 @@ class DocumentGenerator:
         f"From the following text, extract the value for '{path}' as a {field_type}.\n"
         f'Respond with only a valid JSON literal (e.g. 123, "abc", true, etc):\n\n{documentText}'
       )
-      raw_output = (await self.llm.GenerateV2(prompt)).Response
+      raw_output = (await self.llm.Generate(prompt)).Response
       value = self._safe_parse_json(raw_output)
       return await self._validate_type(field_type, value, path)
 
@@ -98,7 +98,7 @@ class DocumentGenerator:
         f"The extracted value for '{path}' was invalid ({value}). "
         f'Please return a valid {expected_type} in strict JSON format only.'
       )
-      corrected = (await self.llm.GenerateV2(correction_prompt)).Response
+      corrected = (await self.llm.Generate(correction_prompt)).Response
       return self._safe_parse_json(corrected)
 
   def _safe_parse_json(self, text: str) -> Any:

@@ -1,6 +1,4 @@
 import json
-import re
-from typing import Any, cast
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
@@ -28,8 +26,6 @@ async def ProcessNewDocuments(
   currentResponse = ServerResponseObject()
   currentResponse.Data = extraData
   currentResponse.Message = 'Processing....'
-  yield serverResponse.GenerateServerResponse(currentResponse)
-
   # summarize all documents in the target category,
   # and save the results into a separate bucket.
   # We do not need typesense to process entire documents for indexing and document generation.
@@ -83,18 +79,16 @@ async def ProcessNewDocuments(
     summarizedDocumentContent = await SummarizeDocument(
       content=originalContent,
       context=f'folder name: {bucketRootName}, file name:{document.object_name}',
-      resolution=resolution,
-      minioObject=minioObject,
       llmObject=llmObject,
     )
-    print(f'SummarizedContent: {summarizedDocumentContent}')
-    if len(summarizedDocumentContent) <= 0:
-      serverResponse.GenerateLogMessage(
-        messageString=f'document: {document.object_name} summarized to nothing, skipping file.',
-        errorType=ErrorTypes.Warning,
-      )
-      unprocessedDocumentNames.append(document.object_name)
-      continue
+    keySummarizedContent = await SummarizeToKeyIdentifiers(
+      content=originalContent,
+      context=f'folder name: {bucketRootName}, file name:{document.object_name}',
+      llmObject=llmObject,
+    )
+    summarizedDocumentContent.extend(keySummarizedContent)
+    print(f'summarizedContent: {summarizedDocumentContent}')
+
     # Upload summarized document into their own bucket and store a reference in the database table.
     # story both the original document path and the summarized document path.
     summarizedDocumentName = (
@@ -105,7 +99,7 @@ async def ProcessNewDocuments(
       f'{bucketRootName}-processed',
       summarizedBucketName,
       originalContent,
-      summarizedDocumentContent,
+      json.dumps(summarizedDocumentContent, indent=0),
       f'{document.object_name.split(".")[0]}-processed.txt',
       summarizedDocumentName,
       serverResponse=serverResponse,
@@ -125,7 +119,7 @@ async def ProcessNewDocuments(
 
     # move the document from the new bucket to the processed bucket
     minioObject.DeleteDocument(document.object_name, newDocumentBucketName)
-    mergedContent += f'\n {summarizedDocumentContent}'
+    mergedContent += f'\n {json.dumps(summarizedDocumentContent, indent=0)}'
 
   currentResponse.Success = len(uploadedDocumentNames) > 0
   currentResponse.Message = (
@@ -140,11 +134,45 @@ async def ProcessNewDocuments(
   yield serverResponse.GenerateServerResponse(currentResponse)
 
 
+async def SummarizeToKeyIdentifiers(
+  content: str,
+  context: str,
+  llmObject: LLM_Object,
+):
+  """
+  Focuses on summarizing the document to detect names, key items, or people
+  Args:
+      content: str : The content to be summarized
+      context: str : The context used to guide the LLM when summarizing the document.
+      llmObject: LLM_Object : the llm object that will be used to summarize the document.
+  """
+  summarizedContent = []
+  for paragraph in content.split('\n\n'):
+    if len(paragraph) <= 0:
+      continue
+    llmResponse = await llmObject.Generate(
+      f"""paragraph: {paragraph} \nUse the following context: {context}: identify key items, people, names, statistics, or figures from the paragraph into a JSON list of {{"topic": "topic name", "quote":"quote from paragraph"}}. Respond with only valid JSON."""
+    )
+    if not llmResponse.Success:
+      continue
+    # strip and process into json
+    llmResponse = json.loads(
+      JsonUtils.TryConvertStringToJson(llmResponse.Response)
+    )
+    for match in llmResponse['matches']:
+      try:
+        summarizedContent.append(
+          {'topic': match['topic'], 'quote': match['quote']}
+        )
+      except Exception:
+        pass
+
+  return summarizedContent
+
+
 async def SummarizeDocument(
   content: str,
   context: str,
-  resolution: int,
-  minioObject: MinIO_Object,
   llmObject: LLM_Object,
 ):
   """
@@ -152,8 +180,9 @@ async def SummarizeDocument(
   For example if a resolution of 2 is given, then each paragraph of the content will be summarized twice.
 
   Args:
-      content (str): The content to be summarized.
-      resolution (int): The number of times the content gets summarized. Higher values result in smaller resulted document sizes but has higher data loss.
+      content: str : The content to be summarized
+      context: str : The context used to guide the LLM when summarizing the document.
+      llmObject: LLM_Object : the llm object that will be used to summarize the document.
   """
   summarizedContent = []
   for paragraph in content.split('\n\n'):
@@ -162,7 +191,7 @@ async def SummarizeDocument(
     # summarizedParagraph = await llmObject.GenerateV2(
     #   f"""paragraph: {paragraph} \n summarize the paragraph into 75% of its original length using the context: {context}. Only reply with the summarized content and do not write anything else or respond to this prompt."""
     # )
-    llmResponse = await llmObject.GenerateV2(
+    llmResponse = await llmObject.Generate(
       f"""paragraph: {paragraph} \nUse the following context: {context}: To summarize and format the paragraph into a JSON list of {{"topic": "topic name", "quote":"quote from paragraph"}}. Respond with only valid JSON."""
     )
     if not llmResponse.Success:
@@ -179,15 +208,7 @@ async def SummarizeDocument(
       except Exception:
         pass
 
-  # print(f'summarizedContent: {summarizedContent}')
-
-  # TODO: Add resolution back in.
-  # resolution -= 1
-  # if resolution > 0:
-  #   return await SummarizeDocument(
-  #     content, context, resolution, minioObject, llmObject, jsonParagraph
-  #   )
-  return json.dumps(summarizedContent, indent=0)
+  return summarizedContent
 
 
 async def UploadProcessedDocuments(

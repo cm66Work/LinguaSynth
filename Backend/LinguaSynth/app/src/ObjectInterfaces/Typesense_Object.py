@@ -1,6 +1,7 @@
 import os
 from Utils.ServerResponse import ServerResponseObject
 from Managers.TypesenseManager import TypesenseManager
+from typesense.types.collection import CollectionSchema
 
 LLM_LIGHT_GENERATION_MODEL = 'gemma3:270m-it-bf16'  #'gemma3:1b-it-fp16'
 LLM_HEAVY_GENERATION_MODEL = 'gemma3:4b'
@@ -18,9 +19,9 @@ class Typesense_Object:
     self.collectionValid = False
 
   def ImportSchema(
-    self, schemaName: str, schema: str, force: bool = False
+    self, schema: CollectionSchema, force: bool = False
   ) -> ServerResponseObject:
-    return self.client.RecreateCollection(schemaName, schema, force=force)
+    return self.client.RecreateCollection(schema, force=force)
 
   # def CreateNewCollection(self):
 

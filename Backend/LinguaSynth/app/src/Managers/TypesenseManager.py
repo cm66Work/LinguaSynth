@@ -68,7 +68,7 @@ class TypesenseManager:
     return False
 
   def RecreateCollection(
-    self, schemaName: str, newSchema: str, force=False
+    self, schema: CollectionSchema, force=False
   ) -> ServerResponseObject:
     """
     Deletes and recreates a new collection with the provides schema.
@@ -80,15 +80,17 @@ class TypesenseManager:
     currentResponse = ServerResponseObject()
     currentResponse.Data = {'result': {}}
     try:
-      validationResponse = self.__SchemaCreationValidation(schemaName, force)
+      validationResponse = self.__SchemaCreationValidation(
+        schema['name'], force
+      )
       # run validation checks
       if validationResponse.Finished:
         # Validation failed.
         return validationResponse
 
-      if self.SchemaExists(schemaName):
+      if self.SchemaExists(schema['name']):
         try:
-          self.client.collections[schemaName].delete()
+          self.client.collections[schema['name']].delete()
         except Exception as e:
           currentResponse.Message = f'Failed to delete schema: {e}'
           currentResponse.Finished = True
@@ -97,11 +99,6 @@ class TypesenseManager:
             errorType=ErrorTypes.Error,
             className=__class__.__name__,
           )
-
-      schema = json.loads(newSchema)
-      schema = cast(CollectionSchema, schema)
-      schema['name'] = schemaName
-      schema['enable_nested_fields'] = True
 
       try:
         """ For objects in the schema we need to flatten them.
@@ -124,6 +121,7 @@ class TypesenseManager:
         result = self.client.collections.create(schema)
         currentResponse.Success = True
         currentResponse.Data['result'] = result
+        currentResponse.Finished = True
         return self.serverResponseUtil.GenerateServerResponse(currentResponse)
       except Exception as e:
         currentResponse.Message = f'Failed to create schema: {e}'

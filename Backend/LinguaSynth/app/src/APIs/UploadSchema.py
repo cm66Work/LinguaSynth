@@ -1,11 +1,11 @@
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
+from typesense.types.collection import CollectionSchema
 
 
 async def UploadSchema(
-  schemaName: str,
-  newSchema: str,
+  schema: CollectionSchema,
   serverResponse: ServerResponse,
   typesenseObject: Typesense_Object,
   force: bool = False,
@@ -20,12 +20,12 @@ async def UploadSchema(
   """
 
   currentResponse = ServerResponseObject()
-  currentResponse.Message = 'Processing...'
+  currentResponse.Message = f'Uploading new schema: {schema["name"]} ...'
   yield serverResponse.GenerateServerResponse(currentResponse)
 
   # run validation checks
   currentResponse = __Validation(
-    schemaName, serverResponse, typesenseObject, force
+    schema['name'], serverResponse, typesenseObject, force
   )
   if currentResponse.Finished:
     # Validation failed.
@@ -34,11 +34,10 @@ async def UploadSchema(
   yield currentResponse
 
   try:
-    currentResponse = typesenseObject.ImportSchema(schemaName, newSchema, force)
+    currentResponse = typesenseObject.ImportSchema(schema, force)
     yield currentResponse
 
   except Exception as e:
-    currentResponse.Success = False
     currentResponse.Message = f'{e}'
     currentResponse.Finished = True
     yield serverResponse.GenerateServerResponse(

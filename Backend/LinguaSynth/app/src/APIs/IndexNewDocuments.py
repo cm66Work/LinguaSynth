@@ -132,12 +132,12 @@ async def GenerateDocument(
   async def ProcessFieldTypes(fieldType: str) -> Any:
     match fieldType:
       case 'string':
-        llmResponse = await llmObject.GenerateV2(
+        llmResponse = await llmObject.Generate(
           f"""document:{document} \n Summarize the content of this document based on the following topic: {fieldName}. Only response with the summarized content. Only response as a {fieldType}. Your response should be a max of {maxResponseCount} words."""
         )
         return llmResponse.Response
       case 'int32' | 'int64':
-        llmResponse = await llmObject.GenerateV2(
+        llmResponse = await llmObject.Generate(
           f"""document:{document} \n find the numerical information in this document that is relevant to the following topic: {fieldName}. Only response with the summarized content. Only response as a {fieldType}. Your response should be a max of 1 number"""
         )
         llmResponse = re.search(r'([1-9][0-9]*)', llmResponse.Response)
@@ -147,7 +147,7 @@ async def GenerateDocument(
           llmResponse = cast(int, llmResponse.group(0))
         return int(llmResponse)
       case 'float':
-        llmResponse = await llmObject.GenerateV2(
+        llmResponse = await llmObject.Generate(
           f"""document:{document} \n find the numerical information in this document that is relevant to the following topic: {fieldName}. Only response with the summarized content. Only response as a {fieldType}. Your response should be a max of 1 floating point number limited to 3 decimal places"""
         )
         llmResponse = re.search(
@@ -159,7 +159,7 @@ async def GenerateDocument(
           llmResponse = cast(float, llmResponse.group(0))
         return float(llmResponse)
       case 'bool':
-        llmResponse = await llmObject.GenerateV2(
+        llmResponse = await llmObject.Generate(
           f"""document:{document} \n Does this document answer the following question? Question: {fieldName}. Only response as a {fieldType} answer. Your response should be a max of 1 True or False response."""
         )
         llmResponse = (
@@ -168,7 +168,7 @@ async def GenerateDocument(
         llmResponse = cast(bool, llmResponse)
         return bool(llmResponse)
       case 'bool[]':
-        llmResponse = await llmObject.GenerateV2(
+        llmResponse = await llmObject.Generate(
           f"""document:{document} \n Does this document answer the following question? Question: {fieldName}. Only response as a list of True or False answer. Your response should be a max of {maxResponseCount} True or False response."""
         )
         # TODO:: need to add this
@@ -181,7 +181,7 @@ async def GenerateDocument(
         # TODO:: need to add this
         return 'Handle array of geopoints'
       case 'string[]':
-        llmResponse = await llmObject.GenerateV2(
+        llmResponse = await llmObject.Generate(
           f"""document:{document} \n Summarize the content of this document based on the following topic: {fieldName}. Only response with the summarized content. Only response as a list of strings that are related to the answer. Reach list string should be a max of {maxResponseCount} words. Only response with the answer as a Json List of strings"""
         )
         llmResponse = re.search(r'\[[\s\S]*\]', llmResponse.Response)
@@ -238,7 +238,7 @@ async def ProcessDocumentObjectGeneration(
 ):
   # TODO:: need to test.
   print(f'\n object fields: {objectFields}')
-  llmResponse = await llmObject.GenerateV2(
+  llmResponse = await llmObject.Generate(
     f"""document:{document} \n Use this document to generate an JSON object that best aligns with and matches the following topic: {fieldName}. Response with a single valid Json only. Output format is {objectFields}"""
   )
 
