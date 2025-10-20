@@ -90,58 +90,22 @@ async def SchemaGeneration(
   """
 
   async def EventStream():
-    # Iterate over the inner async generator
-    # async for response in APIs.GenerateSchema.SchemaGeneration(
-    #   bucketRootName=bucketRootName,
-    #   sampleSize=sampleSize,
-    #   serverResponse=serverResponse,
-    #   minioObject=minioObject,
-    #   llmObject=llmObject,
-    #   resolution=resolution,
-    #   force=force,
-    #   tagCompression=tagCompression,
-    # ):
-    #   # Convert the yielded dict to JSON
-    #   response = json.dumps(vars(response)) + '\n'
-    #   yield response
-    async for response in APIs.GenerateSchema.SchemaGenerationV2(
+    async for response in APIs.GenerateSchema.SchemaGeneration(
       minioObject, llmObject, typesenseObject, serverResponse
     ):
       # Convert the yielded dict to JSON
-      response = json.dumps(vars(response)) + '\n'
-      yield response
+      yield json.dumps(vars(response)) + '\n'
+      schema = response.Data['schema']
+
+      # Now try to upload the new schema
+      async for response in APIs.UploadSchema.UploadSchema(
+        schema,
+        serverResponse,
+        typesenseObject,
+      ):
+        yield json.dumps(vars(response)) + '\n'
 
   return StreamingResponse(EventStream(), media_type='application/json')
-
-
-@app.post('/upload-schema/')
-async def UploadJsonSchema(schemaName: str, schema: str, force: bool = False):
-  """
-  Uploads the given schema as a new typesense collection schema.
-
-  Args:
-      schemaName: str : the schemas name.
-      schemaJsonString: str : the json string for the schema.
-      force : bool : if true then it will override any existing schemas with the same name.
-  """
-
-  async def EventStream():
-    async for response in APIs.UploadSchema.UploadSchema(
-      schemaName,
-      schema,
-      serverResponse,
-      typesenseObject,
-      force,
-    ):
-      response = json.dumps(vars(response)) + '\n'
-      yield response
-
-  return StreamingResponse(EventStream(), media_type='application/json')
-
-
-@app.get('/get-schemas/')
-async def GetLoadedSchemas():
-  return typesenseObject.GetAllSchemas()
 
 
 @app.post('/start-indexing-documents/')
