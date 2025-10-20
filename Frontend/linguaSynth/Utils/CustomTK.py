@@ -25,6 +25,9 @@ class TextProgressBar(tk.Canvas):
       width // 2, height // 2, text='0%', fill='white', font=('Arial', 12, 'bold')
     )
 
+  def Reset(self):
+    self.SetProgress(0.1)
+
   def SetProgress(self, value, message=''):
     """Update progress bar value (0 to max_value)."""
     self.progress = min(max(value, 0), self.max_value)

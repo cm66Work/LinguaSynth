@@ -9,7 +9,6 @@ class Panel:
     self.serverAddress = serverAddress.get().strip()
     self.categoryName = categoryName.get().strip()
     self.progressbar = progressbar
-    self.progressbar.SetProgress(0, 'Starting...')
 
   class ErrorType(Enum):
     Error = 'Error'

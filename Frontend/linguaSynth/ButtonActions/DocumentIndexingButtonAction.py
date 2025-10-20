@@ -18,7 +18,7 @@ class DocumentIndexingButtonAction:
       f'{self.serverAddress}/start-indexing-documents/?schemaName={self.categoryName}'
     ) as response:
       if response.status_code != 200:
-        return None, response.status_code
+        return False, response.status_code
 
       # Iterate over streamed lines
       success = False
