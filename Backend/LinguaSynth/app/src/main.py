@@ -11,6 +11,7 @@ import APIs.ProcessNewDocuments
 import APIs.GenerateSchema
 import APIs.UploadSchema
 import APIs.IndexNewDocuments
+import APIs.DocumentIndexing
 from fastapi.responses import StreamingResponse
 
 # --- Objects ---
@@ -37,9 +38,7 @@ async def HealthCheck():
 @app.post('/question')
 async def UserQuestion(question: str):
   async def EventStream():
-    async for response in APIs.UserQuery.UserQuery(
-      serverResponse, llmObject, typesenseObject, question
-    ):
+    async for response in APIs.UserQuery.UserQuery():
       response = json.dumps(vars(response)) + '\n'
       print('response', response)
       yield response
@@ -117,16 +116,22 @@ async def StartDocumentIndexing(schemaName: str):
   """
 
   async def EventStream():
-    async for response in APIs.IndexNewDocuments.IndexNewDocuments(
-      schemaName=schemaName,
-      serverResponse=serverResponse,
-      typesenseObject=typesenseObject,
-      postgresObject=postgresObject,
-      minioObject=minioObject,
-      llmObject=llmObject,
+    async for response in APIs.DocumentIndexing.IndexNewDocuments(
+      serverResponse, typesenseObject, minioObject, llmObject
     ):
       response = json.dumps(vars(response)) + '\n'
       print('response: ', response)
       yield response
 
   return StreamingResponse(EventStream(), media_type='application/json')
+
+
+@app.post('/delete-all-schemas/')
+async def DeleteAllSchemas():
+  for schema in typesenseObject.GetAllSchemas():
+    typesenseObject.DeleteSchema(schema['name'])
+
+
+@app.post('/get-all-schemas')
+async def GetAllSchemas():
+  return typesenseObject.GetAllSchemas()
