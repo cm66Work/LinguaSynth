@@ -10,12 +10,6 @@ from ObjectInterfaces.LLM_Object import (
 from ObjectInterfaces.PostgresObject import Postgres_Object
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
-from ollama import embed
-from typesense.types.collection import (
-  CollectionSchema,
-  RegularCollectionFieldSchema,
-  ReferenceCollectionFieldSchema,
-)
 
 # Convert the document quote to a vector embedding that is weighted towards the topic.
 # Convert the schema fields to a vector embedding that is weighted towards the schema name.
