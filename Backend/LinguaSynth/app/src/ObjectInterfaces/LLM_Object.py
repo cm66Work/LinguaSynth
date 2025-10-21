@@ -1,11 +1,12 @@
 import json
 import os
 import re
-from typing import List, cast
+from typing import Dict, List, cast
 from Managers.LLMManager import LLMManager, LLMServerResponseObject
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from typesense.types.collection import (
   CollectionSchema,
+  CollectionCreateSchema,
   RegularCollectionFieldSchema,
   ReferenceCollectionFieldSchema,
 )
@@ -192,3 +193,108 @@ class EmbeddingVectorSchemaGenerator:
     if np.max(sims) > numberConfidenceThreshold:
       return 'number'
     return 'string'
+
+
+class EmbeddingVectorDocumentGenerator:
+  def __init__(self, llmObject, typesenseObject):
+    self.llmObject = llmObject
+    self.typesenseObject = typesenseObject
+
+  async def GetEmbeddingsForContent(
+    self, texts: List[str]
+  ) -> List[List[float]]:
+    """
+    Uses Ollama embeddinggemma:300m via llmObject client to get embeddings.
+    """
+    return await self.llmObject.client.GetEmbeddings(
+      texts, 'embeddinggemma:300m'
+    )
+
+  async def GenerateWeightedVectorEmbeddings(
+    self, values: List[str], biases: List[str]
+  ) -> List[Dict[str, object]]:
+    """
+    Generates weighted embeddings vectors from values that are grouped around the bias
+    """
+
+    # Step 1: Get embeddings from LLM (parallel)
+    valueVectors = await self.GetEmbeddingsForContent(values)
+    biasesVectors = await self.GetEmbeddingsForContent(biases)
+
+    # Convert to numpy arrays for easier math
+    valueVectors = [np.array(v) for v in valueVectors]
+    biasesVectors = [np.array(v) for v in biasesVectors]
+
+    results = []
+    for i, item in enumerate(values):
+      valueVector = valueVectors[i]
+      biasVector = biasesVectors[i]
+
+      # Step 2: Compute cosine similarity between topic and quote
+      similarity = self.CosineSimilarity(valueVector, biasVector)
+
+      # Step 3: Compute topic weight (normalized between 0.3 and 0.8)
+      weight = self._normalize(similarity, min_val=0.3, max_val=0.8)
+
+      # Step 4: Combine embeddings
+      weighted_vec = self._normalize_vector(
+        weight * valueVector + (1 - weight) * biasVector
+      )
+
+      results.append(
+        {
+          'value': values[i],
+          'bias': biases[i],
+          'embedding': weighted_vec.tolist(),
+        }
+      )
+
+    return results
+
+  def CombineEmbeddings(self, vectors: List[List[float]]) -> List[float]:
+    """
+    Combines a list of embedding vectors into a single representative vector.
+    Method: computes the mean vector (centroid) and normalizes it.
+
+    Args:
+        vectors (List[List[float]]): List of embedding vectors (same dimensionality)
+
+    Returns:
+        List[float]: Single normalized combined embedding vector
+    """
+    if not vectors:
+      raise ValueError('No vectors provided for combination.')
+
+    # Convert all to numpy arrays
+    np_vectors = [np.array(v) for v in vectors]
+
+    # Step 1: Compute mean vector (element-wise average)
+    mean_vec = np.mean(np.stack(np_vectors), axis=0)
+
+    # Step 2: Normalize the combined vector
+    normalized_vec = self._normalize_vector(mean_vec)
+
+    return normalized_vec.tolist()
+
+  # ---- Helper functions ----
+
+  def CosineSimilarity(self, a: np.ndarray, b: np.ndarray) -> float:
+    """Returns how close a is to b, eg how similar a is to b."""
+    a = np.array(a, dtype=float)
+    b = np.array(b, dtype=float)
+    if a.ndim > 2:
+      a = a.reshape(a.shape[0], -1)
+    if b.ndim > 2:
+      b = b.reshape(b.shape[0], -1)
+    a_norm = a / np.linalg.norm(a, axis=1, keepdims=True)
+    b_norm = b / np.linalg.norm(b, axis=1, keepdims=True)
+    return np.dot(a_norm, b_norm.T)
+
+  def _normalize(self, value: float, min_val: float, max_val: float) -> float:
+    # Map 0–1 similarity to custom range
+    value = np.clip(value, 0.0, 1.0)  # safely clamp arrays or scalars
+    return min_val + (max_val - min_val) * value
+
+  def _normalize_vector(self, vec: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(vec)
+    return vec / norm if norm > 0 else vec

@@ -339,3 +339,6 @@ class TypesenseManager:
     currentResponse.Success = True
     currentResponse.Data = {'documents': result}
     return self.serverResponseUtil.GenerateServerResponse(currentResponse)
+
+  def DeleteSchema(self, schemaName: str):
+    return self.client.collections[schemaName].delete()

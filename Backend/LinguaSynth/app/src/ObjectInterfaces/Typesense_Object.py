@@ -94,3 +94,6 @@ class Typesense_Object:
 
   def DocumentSearch(self, collectionName: str):
     return self.client.DocumentSearch(collectionName, 50)
+
+  def DeleteSchema(self, schemaName: str):
+    return self.client.DeleteSchema(schemaName)
