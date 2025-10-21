@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import json
-from typing import cast
+from typing import cast, List
 import numpy as np
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import (
@@ -42,99 +42,91 @@ async def IndexNewDocuments(
   """
   Indexes new documents from MinIO to the given Typesense schema.
   """
+  # Initialize response
+  response = serverResponse.GenerateServerResponse(ServerResponseObject())
+  total_docs = minioObject.GetNumberOfObjectsInBucket('baseflow-summarized')
+
+  response.Data = {'total_documents': total_docs, 'indexed_documents': 0}
+  response.Message = 'Starting document indexing...'
+  yield serverResponse.GenerateServerResponse(response)
+
   documentGenerator = EmbeddingVectorDocumentGenerator(
     llmObject, typesenseObject
   )
-  currentResponse = serverResponse.GenerateServerResponse(
-    ServerResponseObject()
-  )
-  currentResponse.Data = {
-    'total_documents': minioObject.GetNumberOfObjectsInBucket(
-      'baseflow-summarized'
-    ),
-    'indexed_documents': 0,
-  }
-  currentResponse.Message = 'Starting document indexing...'
-  yield serverResponse.GenerateServerResponse(currentResponse)
-  quoteSchemaRelationObjects: list[QuoteSchemaRelationObject] = []
-  # Generate document vector embeddings.
-  for bucketObject in minioObject.GetObjectsInBucket('baseflow-summarized'):
-    currentResponse.Message = 'indexing documents...'
-    currentResponse.Data['indexed_documents'] += 1
-    yield serverResponse.GenerateServerResponse(currentResponse)
-    if bucketObject.object_name is None:
+  quote_relations: List[QuoteSchemaRelationObject] = []
+
+  # Iterate through documents
+  for obj in minioObject.GetObjectsInBucket('baseflow-summarized'):
+    response.Message = 'Indexing documents...'
+    response.Data['indexed_documents'] += 1
+    yield serverResponse.GenerateServerResponse(response)
+
+    if not obj.object_name:
       continue
+
+    # --- Step 1: Load and parse JSON content ---
     try:
-      objectContent = json.loads(
-        minioObject.GetContentOfBucketObject(
-          bucketObject.bucket_name, bucketObject.object_name
-        ).Data['content']
-      )
+      raw_content = minioObject.GetContentOfBucketObject(
+        obj.bucket_name, obj.object_name
+      ).Data['content']
+      document_data = json.loads(raw_content)
     except Exception as e:
-      print('failed to load json content', e)
-      currentResponse.Message = 'Failed to parse document. Are all documents summarized in a json format?'
-      currentResponse.Success = False
-      currentResponse.Finished = True
-      yield serverResponse.GenerateServerResponse(currentResponse)
+      print(f'Failed to parse JSON for {obj.object_name}: {e}')
+      response.Message = (
+        'Failed to parse document. Ensure all summaries are valid JSON.'
+      )
+      response.Success = False
+      response.Finished = True
+      yield serverResponse.GenerateServerResponse(response)
       return
 
-    # Extract topics and quotes
-    topics = [item['topic'] for item in objectContent]
-    quotes = [item['quote'] for item in objectContent]
-    documentEmbeddings = (
-      await documentGenerator.GenerateWeightedVectorEmbeddings(quotes, topics)
+    # --- Step 2: Generate quote/topic embeddings ---
+    topics = [item['topic'] for item in document_data]
+    quotes = [item['quote'] for item in document_data]
+    embeddings = await documentGenerator.GenerateWeightedVectorEmbeddings(
+      quotes, topics
     )
-    # Create default relation object.
-    # Will be set later once we have embedded our schemas.
-    for embeddingResult in documentEmbeddings:
-      quoteSchemaRelationObjects.append(
+
+    for emb in embeddings:
+      quote_relations.append(
         QuoteSchemaRelationObject(
-          Topic=cast(str, embeddingResult['bias']),
-          Quote=cast(str, embeddingResult['value']),
-          QuoteEmbedding=cast(list[float], embeddingResult['embedding']),
-          DocumentName=bucketObject.object_name,
+          Topic=cast(str, emb['bias']),
+          Quote=cast(str, emb['value']),
+          QuoteEmbedding=cast(list[float], emb['embedding']),
+          DocumentName=obj.object_name,
           SchemaName='',
           CurrentSimilarity=-9999,
         )
       )
 
-    # Generate schema vector embeddings.
-    currentResponse.Message = 'Generating schema vectors'
-    yield serverResponse.GenerateServerResponse(currentResponse)
+    # --- Step 3: Generate schema embeddings ---
+    response.Message = 'Generating schema vectors...'
+    yield serverResponse.GenerateServerResponse(response)
 
-    # schemaVectors: list[list[float]] = []
-    # Extract schema names and field names
-    collections = typesenseObject.GetAllSchemas()
-    # Need duplicates of the schema names so that our vector embeddings shape remains the same between the field names and the schema names.
-    schemaNames = []
-    fieldNames = []
-    for schema in collections:
-      # Generate the values and the bias
-      for field in schema['fields']:
-        schemaNames.append(schema['name'])
-        fieldNames.append(field['name'])  # type: ignore
+    for schema in typesenseObject.GetAllSchemas():
+      field_names = [field['name'] for field in schema['fields']]  # type: ignore
+      schema_names = [schema['name']] * len(field_names)
 
-      # Calculate the embeddings and collapse to single vector.
-      schemaEmbeddings = (
+      schema_embeddings = (
         await documentGenerator.GenerateWeightedVectorEmbeddings(
-          fieldNames, schemaNames
+          field_names, schema_names
         )
       )
-      schemaVectors = cast(
-        list[list[float]], [vector['embedding'] for vector in schemaEmbeddings]
-      )
-      # schemaVectors.append(documentGenerator.CombineEmbeddings(schemaVectors))
+      schema_vectors = [
+        cast(List[float], vec['embedding']) for vec in schema_embeddings
+      ]
 
-      # We now have all schema vectors calculated.
-      # Find out which schema is closest to every quote in this document.
-      for i, item in enumerate(quoteSchemaRelationObjects):
-        quoteEmbedding = np.array(quoteSchemaRelationObjects[i].QuoteEmbedding)
-        combinedSchemaVector = np.array(
-          documentGenerator.CombineEmbeddings(schemaVectors)
-        )
+      combined_schema_vector = np.array(
+        documentGenerator.CombineEmbeddings(schema_vectors)
+      )
+
+      # --- Step 4: Match quotes to schema using cosine similarity ---
+      for relation in quote_relations:
+        quote_vec = np.array(relation.QuoteEmbedding)
         similarity = documentGenerator.CosineSimilarity(
-          quoteEmbedding, combinedSchemaVector
+          quote_vec, combined_schema_vector
         )
-        if similarity > quoteSchemaRelationObjects[i].CurrentSimilarity:
-          quoteSchemaRelationObjects[i].CurrentSimilarity = similarity
-          quoteSchemaRelationObjects[i].SchemaName = schema['name']
+
+        if similarity > relation.CurrentSimilarity:
+          relation.CurrentSimilarity = similarity
+          relation.SchemaName = schema['name']
