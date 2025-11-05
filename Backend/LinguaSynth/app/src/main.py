@@ -35,34 +35,78 @@ async def HealthCheck():
   return {'message': 'Healthy'}
 
 
-@app.post('/question')
+@app.post('/question/')
 async def UserQuestion(question: str):
+  """
+  API call for the user asking a question to the systems
+
+  Args:
+      question (str): The users question.
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+        {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data ({'answer': generated response as string, 'reference_documents: names of all documents used for answer generation as list[str]})
+        }
+  """
+
   async def EventStream():
-    async for response in APIs.UserQuery.UserQuery():
+    async for response in APIs.UserQuery.UserQuery(
+      serverResponse, llmObject, typesenseObject, question
+    ):
       response = json.dumps(vars(response)) + '\n'
-      print('response', response)
       yield response
 
   return StreamingResponse(EventStream(), media_type='application/json')
 
 
 @app.post('/upload-document/')
-async def UploadNewDocument(documentCategory: str, file: UploadFile):
+async def UploadNewDocument(file: UploadFile):
+  """
+  API call for uploading a new document to the systems storage.
+
+  Args:
+      file (UploadFile): The file to be uploaded to the system
+  Return:
+      ServerResponseObject: {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): The internal result of the file upload to minio (Ignore and use Success for non debugging actions.)
+        }
+  """
   return await APIs.UploadNewDocument.UploadNewDocument(
-    documentCategory, file, minioObject, serverResponse
+    'testing', file, minioObject, serverResponse
   )
 
 
 @app.post('/process-new-uploaded-documents/')
-async def ProcessNewDocuments(bucketRootName: str, resolution: int = 1):
+async def ProcessNewDocuments():
+  """
+  API call for processing un-processed documents into the format the internal system can use.
+
+  Args:
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+        {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): {
+            'document_count' : integer,
+            'processed_document_count : integer,
+            'document_names: list[str] - list of all documents that have been processed.
+          }
+        }
+  """
+
   async def EventStream():
     async for response in APIs.ProcessNewDocuments.ProcessNewDocuments(
-      bucketRootName,
+      'testing',
       serverResponse,
       minioObject,
       llmObject,
       postgresObject,
-      resolution,
+      1,
     ):
       response = json.dumps(vars(response)) + '\n'
       yield response
@@ -71,21 +115,20 @@ async def ProcessNewDocuments(bucketRootName: str, resolution: int = 1):
 
 
 @app.post('/generate-schema/')
-async def SchemaGeneration(
-  bucketRootName: str,
-  sampleSize: int,
-  resolution: int = 1,
-  force: bool = False,
-  tagCompression: float = 0.25,
-):
+async def SchemaGeneration():
   """
+  API call to manually trigger typesense schema generation on testing schema, used for internal testing only.
 
   Args:
-      bucketRootName: str
-      sampleSize: int
-      resolution: int = 1
-      force: bool = False
-      tagCompression:float = 0.25 : tag similarity matching for quote combining.
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+        {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): {
+            'schema' : CollectionSchema - generated typesense collection schema.
+          }
+        }
   """
 
   async def EventStream():
@@ -108,11 +151,21 @@ async def SchemaGeneration(
 
 
 @app.post('/start-indexing-documents/')
-async def StartDocumentIndexing(schemaName: str):
+async def StartDocumentIndexing():
   """
-  Starts indexing new documents into the server using AI.
+  API call to index orphaned documented into their relevant typesense collections.
+
   Args:
-      schemaName: str : the schemas name.
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+        {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): {
+            'total_documents': integer,
+            'processed_documents': integer
+          }
+        }
   """
 
   async def EventStream():

@@ -7,7 +7,8 @@ from ObjectInterfaces.LLM_Object import (
   EmbeddingVectorDocumentGenerator,
   LLM_Object,
 )
-from ObjectInterfaces.PostgresObject import Postgres_Object
+from typesense.types.document import DocumentSchema
+from typesense.types.collection import CollectionSchema
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 
@@ -33,6 +34,19 @@ class QuoteSchemaRelationObject:
   CurrentSimilarity: float
 
 
+@dataclass
+class Document:
+  DocumentName: str
+  QuoteSchemaRelations: List[QuoteSchemaRelationObject]
+
+  def GetRelatedSchemas(self):
+    uniqueSchemaNames: List[str] = []
+    for quoteRelation in self.QuoteSchemaRelations:
+      if quoteRelation.SchemaName not in uniqueSchemaNames:
+        uniqueSchemaNames.append(quoteRelation.SchemaName)
+    return uniqueSchemaNames
+
+
 async def IndexNewDocuments(
   serverResponse: ServerResponse,
   typesenseObject: Typesense_Object,
@@ -44,16 +58,16 @@ async def IndexNewDocuments(
   """
   # Initialize response
   response = serverResponse.GenerateServerResponse(ServerResponseObject())
-  total_docs = minioObject.GetNumberOfObjectsInBucket('baseflow-summarized')
+  totalDocs = minioObject.GetNumberOfObjectsInBucket('baseflow-summarized')
 
-  response.Data = {'total_documents': total_docs, 'indexed_documents': 0}
+  response.Data = {'total_documents': totalDocs, 'indexed_documents': 0}
   response.Message = 'Starting document indexing...'
   yield serverResponse.GenerateServerResponse(response)
 
   documentGenerator = EmbeddingVectorDocumentGenerator(
     llmObject, typesenseObject
   )
-  quote_relations: List[QuoteSchemaRelationObject] = []
+  documents: List[Document] = []
 
   # Iterate through documents
   for obj in minioObject.GetObjectsInBucket('baseflow-summarized'):
@@ -63,6 +77,7 @@ async def IndexNewDocuments(
 
     if not obj.object_name:
       continue
+    documents.append(Document(obj.object_name, []))
 
     # --- Step 1: Load and parse JSON content ---
     try:
@@ -88,7 +103,7 @@ async def IndexNewDocuments(
     )
 
     for emb in embeddings:
-      quote_relations.append(
+      documents[-1].QuoteSchemaRelations.append(
         QuoteSchemaRelationObject(
           Topic=cast(str, emb['bias']),
           Quote=cast(str, emb['value']),
@@ -121,7 +136,7 @@ async def IndexNewDocuments(
       )
 
       # --- Step 4: Match quotes to schema using cosine similarity ---
-      for relation in quote_relations:
+      for relation in documents[-1].QuoteSchemaRelations:
         quote_vec = np.array(relation.QuoteEmbedding)
         similarity = documentGenerator.CosineSimilarity(
           quote_vec, combined_schema_vector
@@ -130,3 +145,25 @@ async def IndexNewDocuments(
         if similarity > relation.CurrentSimilarity:
           relation.CurrentSimilarity = similarity
           relation.SchemaName = schema['name']
+
+  # convert document into a Typesense document and upload it to Typesense.
+  response.Message = 'Finished processing documents.'
+  yield serverResponse.GenerateServerResponse(response)
+
+  response.Message = 'Generating typesense document collections for schemas.'
+  yield serverResponse.GenerateServerResponse(response)
+  GenerateTypesenseDocument(llmObject, documents)
+
+
+def GenerateTypesenseDocument(llmObject: LLM_Object, documents: List[Document]):
+  """ """
+
+  for document in documents:
+    for schemaName in document.GetRelatedSchemas():
+      print(
+        schemaName
+      )  # now you have what you need to generate the document collection.
+
+
+def UploadToTypesense():
+  pass

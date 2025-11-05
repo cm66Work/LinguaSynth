@@ -1,10 +1,11 @@
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
+from Utils.ServerResponse import ServerResponse, ServerResponseObject
 import numpy as np
 
 
 async def UserQuery(
-  serverResponse,
+  serverResponse: ServerResponse,
   llmObject: LLM_Object,
   typesenseObject: Typesense_Object,
   userQuery: str,
@@ -13,6 +14,14 @@ async def UserQuery(
   Generates embeddings for both the user query and the Typesense documents
   (dynamically, not stored), and returns the top 5 most semantically similar documents.
   """
+
+  currentResponse = ServerResponseObject()
+  currentResponse.Success = True
+  currentResponse.Finished = True
+  currentResponse.Message = 'Generating response...'
+  currentResponse.Data = {'answer': '', 'reference_document': ''}
+  yield serverResponse.GenerateServerResponse(currentResponse)
+  return
 
   # Step 1: Get the embedding for the user query
   # Flatten query embedding
