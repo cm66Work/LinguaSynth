@@ -51,6 +51,9 @@ async def __ProcessAllDocumentsInBucket(
       schemaTemplate,
       documentContent,
     )
+  # We need to make sure these two fields are here since they are used to get the actual full document when the user searches for it.
+  newSchema['fields'].append({'name': 'id', 'type': 'string'})  # type: ignore
+  newSchema['fields'].append({'name': 'document_name', 'type': 'string'})  # type: ignore
   return newSchema
 
 

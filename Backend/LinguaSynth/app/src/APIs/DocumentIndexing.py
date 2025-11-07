@@ -8,13 +8,13 @@ from ObjectInterfaces.LLM_Object import (
   EmbeddingVectorDocumentGenerator,
   LLM_Object,
 )
-import typesense
 from typesense.types.document import DocumentSchema
 from typesense.types.collection import CollectionSchema
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.QuoteMatcher import QuoteObject, SchemaMatcher
 from Utils.SemanticFieldMatcher import SemanticFieldMatcher
+import uuid
 
 
 @dataclass
@@ -79,7 +79,9 @@ async def IndexNewDocuments(
     document = minioObject.GetContentOfBucketObject(
       obj.bucket_name, obj.object_name
     )
+    document.Data.update({'id': '', 'document_name': obj.object_name})
     document = json.loads(str(document.Data['content']))
+
     quotesToProcess = await GetQuotesForDocument(
       document, schemaMatcher, schemaNames
     )
@@ -87,7 +89,11 @@ async def IndexNewDocuments(
       semanticFieldMatcher, document, quotesToProcess, typesenseObject
     )
     typesenseDocuments = await GenerateTypesenseDocuments(
-      document, llmObject, typesenseObject, generatedMatchedDocuments
+      document,
+      llmObject,
+      typesenseObject,
+      generatedMatchedDocuments,
+      obj.object_name,
     )
 
     UploadToTypesense(typesenseDocuments, typesenseObject)
@@ -101,16 +107,6 @@ async def IndexNewDocuments(
   yield serverResponse.GenerateServerResponse(response)
 
 
-def GenerateTypesenseDocument(llmObject: LLM_Object, documents: List[Document]):
-  """ """
-
-  for document in documents:
-    for schemaName in document.GetRelatedSchemas():
-      print(
-        schemaName
-      )  # now you have what you need to generate the document collection.
-
-
 def UploadToTypesense(
   generatedDocuments: list[dict[str, str | DocumentSchema]],
   typesenseObject: Typesense_Object,
@@ -118,8 +114,8 @@ def UploadToTypesense(
   for document in generatedDocuments:
     schema = str(document['schema'])
     documentSchema = str(document['document']).replace("'", '"')
-    response = typesenseObject.IndexFileIntoCollection(documentSchema, schema)
-    print(response)
+    typesenseObject.IndexFileIntoCollection(documentSchema, schema)
+    # print(response)
 
 
 async def GetQuotesForDocument(document, schemaMatcher, schemaNames):
@@ -167,13 +163,13 @@ async def MatchCollectionFieldsToDocumentTopics(
 
 
 async def GenerateTypesenseDocuments(
-  document, llmObject, typesenseObject, generatedMatchedDocuments
+  document, llmObject, typesenseObject, generatedMatchedDocuments, documentName
 ):
   typesenseDocuments: list[dict[str, str | DocumentSchema]] = []
 
   for matchedDocument in generatedMatchedDocuments:
     convertedDocument, schemaName = await ConvertToTypesenseDocument(
-      matchedDocument, document, llmObject, typesenseObject
+      matchedDocument, document, llmObject, typesenseObject, documentName
     )
     if not convertedDocument:
       continue
@@ -188,6 +184,7 @@ async def ConvertToTypesenseDocument(
   document,
   llmObject: LLM_Object,
   typesenseObject: Typesense_Object,
+  documentName,
 ):
   schema = typesenseObject.GetSchema(matchedDocument['schema'])  # type: ignore
   if not schema:
@@ -196,6 +193,9 @@ async def ConvertToTypesenseDocument(
   typesenseDocument: dict[str, Any] = {}
 
   for field in schema['fields']:
+    if field['name'] == 'id' or field['name'] == 'document_name':  # pyright: ignore[reportTypedDictNotRequiredAccess]
+      continue  # will be added at the end and we dont want to contaminate this information
+
     topic = matchedDocument['fields'][field['name']]  # type: ignore
     quote = ''
     for entry in document:
@@ -215,4 +215,12 @@ async def ConvertToTypesenseDocument(
     fieldName = field['name']  # type: ignore
     typesenseDocument.update({fieldName: generatedResult.Response})
 
+  typesenseDocument = DocumentPostProcessing(typesenseDocument, documentName)
   return cast(DocumentSchema, typesenseDocument), schema['name']
+
+
+def DocumentPostProcessing(generatedDocument, documentName):
+  # generatedDocument.update({'id': str(uuid.uuid4())})
+  generatedDocument.update({'document_name': documentName})
+
+  return generatedDocument
