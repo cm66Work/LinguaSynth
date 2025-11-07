@@ -40,15 +40,15 @@ async def UserQuestion(question: str):
   """
   API call for the user asking a question to the systems
 
-  Args:
+  Args::
       question (str): The users question.
   Return:
       Streaming response Event Stream (ServerResponseObject):
-        {
+      {
           Success (bool): if the operation had succeeded without an internal error, see response message if false.
           Message (str): Returned internal message for the current action or state of system.
           Data ({'answer': generated response as string, 'reference_documents: names of all documents used for answer generation as list[str]})
-        }
+      }
   """
 
   async def EventStream():

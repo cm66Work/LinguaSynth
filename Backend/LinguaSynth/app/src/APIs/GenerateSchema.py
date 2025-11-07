@@ -30,7 +30,7 @@ async def SchemaGeneration(
 async def __ProcessAllDocumentsInBucket(
   minioObject: MinIO_Object, schemaGenerator: EmbeddingVectorSchemaGenerator
 ):
-  bucketName = 'baseflow-summarized'
+  bucketName = 'testing-summarized'
   schemaTemplate = {
     'name': 'default',
     'fields': [

@@ -1,23 +1,20 @@
 from dataclasses import dataclass
 import json
-from typing import cast, List
+from typing import cast, List, Dict, Any
+from unittest import result
 import numpy as np
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import (
   EmbeddingVectorDocumentGenerator,
   LLM_Object,
 )
+import typesense
 from typesense.types.document import DocumentSchema
 from typesense.types.collection import CollectionSchema
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
-
-# Convert the document quote to a vector embedding that is weighted towards the topic.
-# Convert the schema fields to a vector embedding that is weighted towards the schema name.
-# Find the closest matches schema to the document.
-# Generate a document schema using the closes matching collection schema.
-# Remove low confidence fields from the document schema
-# index the document into typesense.
+from Utils.QuoteMatcher import QuoteObject, SchemaMatcher
+from Utils.SemanticFieldMatcher import SemanticFieldMatcher
 
 
 @dataclass
@@ -58,101 +55,50 @@ async def IndexNewDocuments(
   """
   # Initialize response
   response = serverResponse.GenerateServerResponse(ServerResponseObject())
-  totalDocs = minioObject.GetNumberOfObjectsInBucket('baseflow-summarized')
+  totalDocs = minioObject.GetNumberOfObjectsInBucket('testing-summarized')
 
   response.Data = {'total_documents': totalDocs, 'indexed_documents': 0}
   response.Message = 'Starting document indexing...'
   yield serverResponse.GenerateServerResponse(response)
 
-  documentGenerator = EmbeddingVectorDocumentGenerator(
-    llmObject, typesenseObject
-  )
-  documents: List[Document] = []
+  response.Message = 'Fetching Typesense collections.'
+  yield serverResponse.GenerateServerResponse(response)
+  schemaNames = [schema['name'] for schema in typesenseObject.GetAllSchemas()]
+  schemaMatcher = SchemaMatcher(llmObject)
+  semanticFieldMatcher = SemanticFieldMatcher(llmObject)
+  response.Message = 'Done.'
+  yield serverResponse.GenerateServerResponse(response)
 
-  # Iterate through documents
-  for obj in minioObject.GetObjectsInBucket('baseflow-summarized'):
-    response.Message = 'Indexing documents...'
+  response.Message = 'Indexing documents...'
+  yield serverResponse.GenerateServerResponse(response)
+
+  for obj in minioObject.GetObjectsInBucket('testing-summarized'):
+    if not obj.object_name:
+      continue
+
+    document = minioObject.GetContentOfBucketObject(
+      obj.bucket_name, obj.object_name
+    )
+    document = json.loads(str(document.Data['content']))
+    quotesToProcess = await GetQuotesForDocument(
+      document, schemaMatcher, schemaNames
+    )
+    generatedMatchedDocuments = await MatchCollectionFieldsToDocumentTopics(
+      semanticFieldMatcher, document, quotesToProcess, typesenseObject
+    )
+    typesenseDocuments = await GenerateTypesenseDocuments(
+      document, llmObject, typesenseObject, generatedMatchedDocuments
+    )
+
+    UploadToTypesense(typesenseDocuments, typesenseObject)
     response.Data['indexed_documents'] += 1
     yield serverResponse.GenerateServerResponse(response)
 
-    if not obj.object_name:
-      continue
-    documents.append(Document(obj.object_name, []))
-
-    # --- Step 1: Load and parse JSON content ---
-    try:
-      raw_content = minioObject.GetContentOfBucketObject(
-        obj.bucket_name, obj.object_name
-      ).Data['content']
-      document_data = json.loads(raw_content)
-    except Exception as e:
-      print(f'Failed to parse JSON for {obj.object_name}: {e}')
-      response.Message = (
-        'Failed to parse document. Ensure all summaries are valid JSON.'
-      )
-      response.Success = False
-      response.Finished = True
-      yield serverResponse.GenerateServerResponse(response)
-      return
-
-    # --- Step 2: Generate quote/topic embeddings ---
-    topics = [item['topic'] for item in document_data]
-    quotes = [item['quote'] for item in document_data]
-    embeddings = await documentGenerator.GenerateWeightedVectorEmbeddings(
-      quotes, topics
-    )
-
-    for emb in embeddings:
-      documents[-1].QuoteSchemaRelations.append(
-        QuoteSchemaRelationObject(
-          Topic=cast(str, emb['bias']),
-          Quote=cast(str, emb['value']),
-          QuoteEmbedding=cast(list[float], emb['embedding']),
-          DocumentName=obj.object_name,
-          SchemaName='',
-          CurrentSimilarity=-9999,
-        )
-      )
-
-    # --- Step 3: Generate schema embeddings ---
-    response.Message = 'Generating schema vectors...'
-    yield serverResponse.GenerateServerResponse(response)
-
-    for schema in typesenseObject.GetAllSchemas():
-      field_names = [field['name'] for field in schema['fields']]  # type: ignore
-      schema_names = [schema['name']] * len(field_names)
-
-      schema_embeddings = (
-        await documentGenerator.GenerateWeightedVectorEmbeddings(
-          field_names, schema_names
-        )
-      )
-      schema_vectors = [
-        cast(List[float], vec['embedding']) for vec in schema_embeddings
-      ]
-
-      combined_schema_vector = np.array(
-        documentGenerator.CombineEmbeddings(schema_vectors)
-      )
-
-      # --- Step 4: Match quotes to schema using cosine similarity ---
-      for relation in documents[-1].QuoteSchemaRelations:
-        quote_vec = np.array(relation.QuoteEmbedding)
-        similarity = documentGenerator.CosineSimilarity(
-          quote_vec, combined_schema_vector
-        )
-
-        if similarity > relation.CurrentSimilarity:
-          relation.CurrentSimilarity = similarity
-          relation.SchemaName = schema['name']
-
-  # convert document into a Typesense document and upload it to Typesense.
-  response.Message = 'Finished processing documents.'
+  response.Message = 'finished.'
+  response.Data['indexed_documents'] = response.Data['total_documents']
+  response.Finished = True
+  response.Success = True
   yield serverResponse.GenerateServerResponse(response)
-
-  response.Message = 'Generating typesense document collections for schemas.'
-  yield serverResponse.GenerateServerResponse(response)
-  GenerateTypesenseDocument(llmObject, documents)
 
 
 def GenerateTypesenseDocument(llmObject: LLM_Object, documents: List[Document]):
@@ -165,5 +111,108 @@ def GenerateTypesenseDocument(llmObject: LLM_Object, documents: List[Document]):
       )  # now you have what you need to generate the document collection.
 
 
-def UploadToTypesense():
-  pass
+def UploadToTypesense(
+  generatedDocuments: list[dict[str, str | DocumentSchema]],
+  typesenseObject: Typesense_Object,
+):
+  for document in generatedDocuments:
+    schema = str(document['schema'])
+    documentSchema = str(document['document']).replace("'", '"')
+    response = typesenseObject.IndexFileIntoCollection(documentSchema, schema)
+    print(response)
+
+
+async def GetQuotesForDocument(document, schemaMatcher, schemaNames):
+  quotes: list[QuoteObject] = []
+  for jsonQuote in document:
+    quoteObject = QuoteObject(jsonQuote['quote'], jsonQuote['topic'], '')
+    (
+      closestMatchingSchema,
+      score,
+    ) = await schemaMatcher.GetBestSchemaForQuoteTopic(quoteObject, schemaNames)
+    quoteObject.ClosestMatchingSchemaName = closestMatchingSchema
+    quotes.append(quoteObject)
+  return quotes
+
+
+async def MatchCollectionFieldsToDocumentTopics(
+  schemaTopicMatcher: SemanticFieldMatcher,
+  document,
+  quoteObjects: list[QuoteObject],
+  typesenseObject: Typesense_Object,
+  matchThreshold=0.9,
+):
+  seenSchemas: list[str] = []
+  generatedMatchedDocuments: list[dict[str, dict[str, str | None]]] = []
+  for quoteObject in quoteObjects:
+    if quoteObject.ClosestMatchingSchemaName in seenSchemas:
+      continue  # Document already indexed into this schema
+    schema = typesenseObject.GetSchema(quoteObject.ClosestMatchingSchemaName)
+    if not schema:
+      continue  # Error in fetching the schema
+    schema = cast(Dict[str, Any], schema)
+    matchedDocument: dict[str, dict[str, str | None]] = {
+      'schema': schema['name'],
+      'fields': (
+        await schemaTopicMatcher.MatchTopicsToSchemaFields(
+          document, schema, matchThreshold
+        )
+      )['fields'],
+    }
+
+    seenSchemas.append(quoteObject.ClosestMatchingSchemaName)
+    generatedMatchedDocuments.append(matchedDocument)
+
+  return generatedMatchedDocuments
+
+
+async def GenerateTypesenseDocuments(
+  document, llmObject, typesenseObject, generatedMatchedDocuments
+):
+  typesenseDocuments: list[dict[str, str | DocumentSchema]] = []
+
+  for matchedDocument in generatedMatchedDocuments:
+    convertedDocument, schemaName = await ConvertToTypesenseDocument(
+      matchedDocument, document, llmObject, typesenseObject
+    )
+    if not convertedDocument:
+      continue
+    typesenseDocuments.append(
+      {'schema': schemaName, 'document': convertedDocument}
+    )
+  return typesenseDocuments
+
+
+async def ConvertToTypesenseDocument(
+  matchedDocument: dict[str, dict[str, str | None]],
+  document,
+  llmObject: LLM_Object,
+  typesenseObject: Typesense_Object,
+):
+  schema = typesenseObject.GetSchema(matchedDocument['schema'])  # type: ignore
+  if not schema:
+    return None, ''
+
+  typesenseDocument: dict[str, Any] = {}
+
+  for field in schema['fields']:
+    topic = matchedDocument['fields'][field['name']]  # type: ignore
+    quote = ''
+    for entry in document:
+      if entry['topic'] == topic:
+        quote = entry['quote']
+        break
+    if quote == '':
+      fieldName = field['name']  # type: ignore
+      typesenseDocument.update({fieldName: ''})
+      continue
+
+    prompt = f"""Summarize the bellow quote based on the following topic: {topic}
+    quote: {quote}
+    Only reply with the answer and nothing else. Only respond with the answer."""
+    generatedResult = await llmObject.Generate(prompt)
+
+    fieldName = field['name']  # type: ignore
+    typesenseDocument.update({fieldName: generatedResult.Response})
+
+  return cast(DocumentSchema, typesenseDocument), schema['name']

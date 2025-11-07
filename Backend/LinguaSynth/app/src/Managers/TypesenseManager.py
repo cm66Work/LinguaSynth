@@ -190,7 +190,7 @@ class TypesenseManager:
       # )
       currentResponse.Message = 'documents uploaded successfully.'
       currentResponse.Success = True
-      # currentResponse.Data['result'] = result
+      currentResponse.Data['result'] = result
       return self.serverResponseUtil.GenerateServerResponse(currentResponse)
     except Exception as e:
       currentResponse.Message = f'Failed to index document: {e}'
@@ -273,6 +273,7 @@ class TypesenseManager:
   # endregion
 
   # region Asking questions
+
   def askQuery(self, collectionName: str, query) -> ServerResponseObject:
     currentResponse = ServerResponseObject()
     currentResponse.Data = {'result': None}
