@@ -53,7 +53,7 @@ async def UserQuestion(question: str):
 
   async def EventStream():
     async for response in APIs.UserQuery.UserQuery(
-      serverResponse, llmObject, typesenseObject, question
+      serverResponse, llmObject, typesenseObject, question, minioObject
     ):
       response = json.dumps(vars(response)) + '\n'
       yield response

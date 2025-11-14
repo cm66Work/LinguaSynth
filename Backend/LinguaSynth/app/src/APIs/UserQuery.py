@@ -1,4 +1,5 @@
 import json
+from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.LLM_Object import LLM_Object, SchemaSimilarityCalculator
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
@@ -11,6 +12,7 @@ async def UserQuery(
   llmObject: LLM_Object,
   typesenseObject: Typesense_Object,
   userQuery: str,
+  minioObject: MinIO_Object,
 ):
   """
   Generates embeddings for both the user query and the Typesense documents
@@ -45,7 +47,18 @@ async def UserQuery(
       str(result[0]['schema']), json.dumps(typesenseQuery)
     )
     topHitDocument = queryResult.Data['result']['hits']
-    print(topHitDocument)
+    currentResponse.Data['reference_document'] = GetDocumentsFromQueryHits(
+      topHitDocument
+    )
+
+    document = minioObject.GetContentOfBucketObject(
+      'testing-processed', currentResponse.Data['reference_document'][0]
+    )
+    prompt = f"""{document}
+      Using the above document answer the following user question: {userQuery}"""
+    generatedResponse = await llmObject.Generate(prompt)
+    currentResponse.Data['answer'] = generatedResponse.Response
+    print(currentResponse)
 
   except ValueError as e:
     currentResponse.Success = False
@@ -55,10 +68,13 @@ async def UserQuery(
     yield serverResponse.GenerateServerResponse(currentResponse)
 
 
-async def GetDocumentsFromQueryHits(hits, typesenseObject: Typesense_Object):
+def GetDocumentsFromQueryHits(hits):
   documentNames: list[str] = []
   for document in hits:
-    documentId = document['id']
+    if document['document']['document_name'] in documentNames:
+      continue
+    documentNames.append(document['document']['document_name'])
+  return documentNames
 
 
 async def GetEmbeddingsForContent(self, texts: List[str]) -> List[List[float]]:

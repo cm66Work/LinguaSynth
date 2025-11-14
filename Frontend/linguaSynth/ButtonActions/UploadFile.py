@@ -24,7 +24,7 @@ class FileUploader:
       with open(filepath, 'rb') as f:
         files = {'file': (os.path.basename(filepath), f, 'text/plain')}
         response = requests.post(
-          f'{self.server_address}/upload-document/?documentCategory={self.category}',
+          f'{self.server_address}/upload-document/',
           files=files,
         )
         return os.path.basename(filepath), response.status_code
