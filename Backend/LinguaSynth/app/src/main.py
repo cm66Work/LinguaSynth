@@ -107,7 +107,6 @@ async def ProcessNewDocuments():
       'testing',
       serverResponse,
       minioObject,
-      llmObject,
       postgresObject,
     ):
       response = json.dumps(vars(response)) + '\n'
