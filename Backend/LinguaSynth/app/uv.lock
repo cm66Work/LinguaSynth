@@ -295,6 +295,7 @@ dependencies = [
     { name = "postgres" },
     { name = "python-multipart" },
     { name = "scikit-learn" },
+    { name = "scipy" },
     { name = "typesense" },
     { name = "uvicorn" },
 ]
@@ -316,6 +317,7 @@ requires-dist = [
     { name = "postgres", specifier = "==4.0" },
     { name = "python-multipart", specifier = "==0.0.20" },
     { name = "scikit-learn", specifier = ">=1.7.2" },
+    { name = "scipy", specifier = ">=1.16.2" },
     { name = "typesense", specifier = ">=1.1.1" },
     { name = "uvicorn", specifier = "==0.35.0" },
 ]

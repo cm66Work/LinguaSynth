@@ -1,16 +1,16 @@
 import json
 import os
-import re
 from typing import Dict, List, cast
 from Managers.LLMManager import LLMManager, LLMServerResponseObject
 from ObjectInterfaces.Typesense_Object import Typesense_Object
+from Utils import CosignSimilarity
 from typesense.types.collection import (
   CollectionSchema,
-  CollectionCreateSchema,
   RegularCollectionFieldSchema,
   ReferenceCollectionFieldSchema,
 )
 import numpy as np
+
 # from jsonschema import validate, ValidationError
 
 # --- Constants ---
@@ -37,6 +37,14 @@ class LLM_Object:
     return await self.client.Generate(
       model=LLM_LIGHT_GENERATION_MODEL, prompt=prompt, format=format
     )
+
+  async def GetEmbeddingsForContent(
+    self, texts: List[str]
+  ) -> List[List[float]]:
+    """
+    Uses Ollama embeddinggemma:300m via llmObject client to get embeddings.
+    """
+    return await self.client.GetEmbeddings(texts, 'embeddinggemma:300m')
 
 
 class EmbeddingVectorSchemaGenerator:
@@ -66,7 +74,7 @@ class EmbeddingVectorSchemaGenerator:
       return currentSchema
 
     # check and remove similar fields from the schema.
-    all_embeddings = await self.GetEmbeddingsForContent(all_texts)
+    all_embeddings = await self.llmObject.GetEmbeddingsForContent(all_texts)
     existing_embeds = all_embeddings[: len(existing_field_names)]
     candidate_embeds = all_embeddings[len(existing_field_names) :]
 
@@ -114,11 +122,6 @@ class EmbeddingVectorSchemaGenerator:
     currentSchema['name'] = FilterName(currentSchema['name'])
     return currentSchema
 
-  async def GetEmbeddingsForContent(
-    self, texts: List[str]
-  ) -> List[List[float]]:
-    return await self.llmObject.client.GetEmbeddings(texts, LLM_EMBEDDING_MODEL)
-
   def cosine_similarity_np(self, a, b):
     """Same fixed version as before."""
     a = np.array(a, dtype=float)
@@ -135,7 +138,7 @@ class EmbeddingVectorSchemaGenerator:
     self, fields, threshold=0.96
   ) -> list[RegularCollectionFieldSchema | ReferenceCollectionFieldSchema]:
     names = [f['name'] for f in fields]
-    embeddings = await self.GetEmbeddingsForContent(names)
+    embeddings = await self.llmObject.GetEmbeddingsForContent(names)
     sim_matrix = self.cosine_similarity_np(embeddings, embeddings)
 
     keep = []
@@ -149,54 +152,9 @@ class EmbeddingVectorSchemaGenerator:
       keep.append(fields[i])
     return [f for f in keep if f['name'] not in removed]
 
-  async def InferFieldType(
-    self,
-    field_name: str,
-    field_context: str,
-    llmObject,
-    numberConfidenceThreshold: float = 0.85,
-  ) -> str:
-    """
-    Infers whether a field should be a 'number' or 'string' based on its content and semantics.
-    Uses regex heuristics and semantic similarity via embeddings.
-    """
-
-    # --- Step 1: Heuristic check for numeric pattern ---
-    if re.fullmatch(
-      r'[-+]?[0-9]*[.,]?[0-9]+(?:[eE][-+]?[0-9]+)?[%$kKmMbB]*',
-      field_context.strip(),
-    ):
-      return 'number'
-
-    # --- Step 2: Prepare embeddings for semantic similarity ---
-    reference_terms = [
-      'number',
-      'numeric',
-      'amount',
-      'quantity',
-      'value',
-      'count',
-    ]
-    comparison_texts = [field_name] + reference_terms
-    embeddings = await llmObject.GetEmbeddingsForContent(comparison_texts)
-
-    field_embed = np.array(embeddings[0])
-    ref_embeds = np.array(embeddings[1:])
-    field_embed = field_embed.reshape(1, -1)
-    ref_embeds = ref_embeds / np.linalg.norm(ref_embeds, axis=1, keepdims=True)
-    field_embed = field_embed / np.linalg.norm(
-      field_embed, axis=1, keepdims=True
-    )
-    sims = np.dot(field_embed, ref_embeds.T)[0]
-
-    # --- Step 3: Threshold-based semantic decision ---
-    if np.max(sims) > numberConfidenceThreshold:
-      return 'number'
-    return 'string'
-
 
 class EmbeddingVectorDocumentGenerator:
-  def __init__(self, llmObject, typesenseObject):
+  def __init__(self, llmObject: LLM_Object, typesenseObject):
     self.llmObject = llmObject
     self.typesenseObject = typesenseObject
 
@@ -231,7 +189,7 @@ class EmbeddingVectorDocumentGenerator:
       biasVector = biasesVectors[i]
 
       # Step 2: Compute cosine similarity between topic and quote
-      similarity = self.CosineSimilarity(valueVector, biasVector)
+      similarity = CosignSimilarity.MultiVector(valueVector, biasVector)
 
       # Step 3: Compute topic weight (normalized between 0.3 and 0.8)
       weight = self._normalize(similarity, min_val=0.3, max_val=0.8)
@@ -251,44 +209,7 @@ class EmbeddingVectorDocumentGenerator:
 
     return results
 
-  def CombineEmbeddings(self, vectors: List[List[float]]) -> List[float]:
-    """
-    Combines a list of embedding vectors into a single representative vector.
-    Method: computes the mean vector (centroid) and normalizes it.
-
-    Args:
-        vectors (List[List[float]]): List of embedding vectors (same dimensionality)
-
-    Returns:
-        List[float]: Single normalized combined embedding vector
-    """
-    if not vectors:
-      raise ValueError('No vectors provided for combination.')
-
-    # Convert all to numpy arrays
-    np_vectors = [np.array(v) for v in vectors]
-
-    # Step 1: Compute mean vector (element-wise average)
-    mean_vec = np.mean(np.stack(np_vectors), axis=0)
-
-    # Step 2: Normalize the combined vector
-    normalized_vec = self._normalize_vector(mean_vec)
-
-    return normalized_vec.tolist()
-
   # ---- Helper functions ----
-
-  def CosineSimilarity(self, a: np.ndarray, b: np.ndarray) -> float:
-    """Returns how close a is to b, eg how similar a is to b."""
-    a = np.array(a, dtype=float)
-    b = np.array(b, dtype=float)
-    if a.ndim > 2:
-      a = a.reshape(a.shape[0], -1)
-    if b.ndim > 2:
-      b = b.reshape(b.shape[0], -1)
-    a_norm = a / np.linalg.norm(a, axis=1, keepdims=True)
-    b_norm = b / np.linalg.norm(b, axis=1, keepdims=True)
-    return np.dot(a_norm, b_norm.T)
 
   def _normalize(self, value: float, min_val: float, max_val: float) -> float:
     # Map 0–1 similarity to custom range

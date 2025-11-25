@@ -1,8 +1,12 @@
 import json
+import re
+from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from typing import List
+from APIs.UploadProcessedDocuments import UploadProcessedDocuments
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
-from Utils import JsonUtils
+from Utils import CosignSimilarity, JsonUtils
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
 
@@ -16,7 +20,7 @@ async def ProcessNewDocuments(
   minioObject: MinIO_Object,
   llmObject: LLM_Object,
   postgresObject: Postgres_Object,
-  resolution: int = 1,
+  frequencyThreshold: float = 0.25,
 ):
   extraData = {
     'document_count': 0,
@@ -26,6 +30,7 @@ async def ProcessNewDocuments(
   currentResponse = ServerResponseObject()
   currentResponse.Data = extraData
   currentResponse.Message = 'Processing....'
+
   # summarize all documents in the target category,
   # and save the results into a separate bucket.
   # We do not need typesense to process entire documents for indexing and document generation.
@@ -42,7 +47,6 @@ async def ProcessNewDocuments(
       errorType=ErrorTypes.Error,
     )
     return
-
   # send off the number of documents in the bucket.
   documentCount = minioObject.GetNumberOfObjectsInBucket(newDocumentBucketName)
   currentResponse.Data['document_count'] = documentCount
@@ -50,15 +54,15 @@ async def ProcessNewDocuments(
 
   uploadedDocumentNames = []
   unprocessedDocumentNames = []
-  mergedContent = ''
+  mergedContent: list[str] = []
   # Get all original documents in the storage bucket.
   for document in minioObject.GetObjectsInBucket(newDocumentBucketName):
     currentResponse.Message = 'Processing...'
     currentResponse.Data['processed_document_count'] = len(
       uploadedDocumentNames
     ) + len(unprocessedDocumentNames)
-    yield serverResponse.GenerateServerResponse(currentResponse)
 
+    yield serverResponse.GenerateServerResponse(currentResponse)
     # For each document, generate summarized document
     if document.object_name is None:
       serverResponse.GenerateLogMessage(
@@ -73,21 +77,35 @@ async def ProcessNewDocuments(
       serverResponse.GenerateLogMessage(
         messageString=f'Failed to get content from file: {document.object_name.split(".")[0]}, from bucket: {newDocumentBucketName}, skipping file.'
       )
+
       unprocessedDocumentNames.append(document.object_name)
       continue
     originalContent = result.Data['content']
-    summarizedDocumentContent = await SummarizeDocument(
-      content=originalContent,
-      context=f'folder name: {bucketRootName}, file name:{document.object_name}',
-      llmObject=llmObject,
+
+    countVectorizer = CountVectorizer(
+      stop_words='english', max_df=0.9, min_df=2
     )
-    keySummarizedContent = await SummarizeToKeyIdentifiers(
-      content=originalContent,
-      context=f'folder name: {bucketRootName}, file name:{document.object_name}',
-      llmObject=llmObject,
-    )
-    summarizedDocumentContent.extend(keySummarizedContent)
-    print(f'summarizedContent: {summarizedDocumentContent}')
+    paragraphs = [
+      paragraphs.strip()
+      for paragraphs in originalContent.split('\n')
+      if len(paragraphs) > 0
+    ]
+    wordCount = countVectorizer.fit_transform(paragraphs)
+    features = countVectorizer.get_feature_names_out()
+
+    transformer = TfidfTransformer()
+    transformer.fit(wordCount)
+
+    countVector = countVectorizer.transform(paragraphs)
+    tfidfVector = (transformer.transform(countVector)).tocoo()  # type: ignore
+    tuples = zip(tfidfVector.row, tfidfVector.col, tfidfVector.data)
+
+    tfidfVector = sorted(tuples, key=lambda x: x[2], reverse=True)
+    extractedKeywords: list[str] = []
+    for tup in tfidfVector:
+      if tup[2] > frequencyThreshold:
+        extractedKeywords.append(str(features[tup[1]]))
+      # print('\n', features[tup[1]], tup[2])
 
     # Upload summarized document into their own bucket and store a reference in the database table.
     # story both the original document path and the summarized document path.
@@ -95,11 +113,12 @@ async def ProcessNewDocuments(
       f'{document.object_name.split(".")[0]}-summarized.txt'
     )
     summarizedBucketName = f'{bucketRootName}-summarized'
+
     result = await UploadProcessedDocuments(
       f'{bucketRootName}-processed',
       summarizedBucketName,
       originalContent,
-      json.dumps(summarizedDocumentContent, indent=0),
+      str(extractedKeywords)[1:-1],
       f'{document.object_name.split(".")[0]}-processed.txt',
       summarizedDocumentName,
       serverResponse=serverResponse,
@@ -119,19 +138,17 @@ async def ProcessNewDocuments(
 
     # move the document from the new bucket to the processed bucket
     minioObject.DeleteDocument(document.object_name, newDocumentBucketName)
-    mergedContent += f'\n {json.dumps(summarizedDocumentContent, indent=0)}'
-
-  currentResponse.Success = len(uploadedDocumentNames) > 0
-  currentResponse.Message = (
-    f'finished uploading {len(uploadedDocumentNames)} documents'
-  )
-  currentResponse.Data['DocumentNames'] = uploadedDocumentNames
-  currentResponse.Data['document_count'] = documentCount
-  currentResponse.Data['processed_document_count'] = len(
-    uploadedDocumentNames
-  ) + len(unprocessedDocumentNames)
-  currentResponse.Finished = True
-  yield serverResponse.GenerateServerResponse(currentResponse)
+    currentResponse.Success = len(uploadedDocumentNames) > 0
+    currentResponse.Message = (
+      f'finished uploading {len(uploadedDocumentNames)} documents'
+    )
+    currentResponse.Data['DocumentNames'] = uploadedDocumentNames
+    currentResponse.Data['document_count'] = documentCount
+    currentResponse.Data['processed_document_count'] = len(
+      uploadedDocumentNames
+    ) + len(unprocessedDocumentNames)
+    currentResponse.Finished = True
+    yield serverResponse.GenerateServerResponse(currentResponse)
 
 
 async def SummarizeToKeyIdentifiers(
@@ -170,7 +187,131 @@ async def SummarizeToKeyIdentifiers(
   return summarizedContent
 
 
+# Very basic tokenizer to extract candidate keywords
+_WORD_RE = re.compile(r'\b\w+\b', re.UNICODE)
+
+_STOPWORDS = {
+  'the',
+  'a',
+  'an',
+  'and',
+  'or',
+  'of',
+  'to',
+  'in',
+  'on',
+  'for',
+  'with',
+  'at',
+  'by',
+  'from',
+  'as',
+  'is',
+  'it',
+  'that',
+  'this',
+  'these',
+  'those',
+  'be',
+  'are',
+  'was',
+  'were',
+  'has',
+  'have',
+  'had',
+  'not',
+  'but',
+  'if',
+  'then',
+  'so',
+  'than',
+  'too',
+  'very',
+  'can',
+  'may',
+  'might',
+  'shall',
+  'will',
+  'would',
+  'could',
+  'should',
+  'do',
+  'does',
+  'did',
+}
+
+
+def ExtractCandidateKeywords(text: str) -> List[str]:
+  """
+  Returns a list of uniq words from the given text.
+  Input: "The river runs along the valley and the morning light softens everything."
+  Output: ["river", "runs", "along", "valley", "morning", "light", "softens", "everything"]
+  """
+  tokens = _WORD_RE.findall(text.lower())
+  candidates = set()
+
+  for t in tokens:
+    if len(t) < 3:
+      continue
+    if t in _STOPWORDS:
+      continue
+    candidates.add(t)
+
+  return list(candidates)
+
+
 async def SummarizeDocument(
+  content: str,
+  context: list[str],
+  llmObject: LLM_Object,
+  top_k: int = 25,
+) -> List[str]:
+  """
+  Uses embeddings to extract keywords from `content` that are most similar to `context`.
+
+  Args:
+      content: The full text content to extract keywords from.
+      context: File or folder name, used as the semantic reference.
+      llmObject: Object that exposes `GetEmbeddings(texts: List[str], model: str)`.
+      top_k: Number of top matching keywords to return.
+
+  Returns:
+      List of keywords sorted by similarity to `context` (highest first).
+  """
+
+  # Collect candidate keywords from the entire content
+  candidate_keywords = ExtractCandidateKeywords(content)
+
+  if not candidate_keywords:
+    return []
+
+  # First embedding is the context, followed by one embedding for each keyword
+  texts_for_embedding = context + candidate_keywords
+  # print(texts_for_embedding)
+
+  embeddings = await llmObject.GetEmbeddingsForContent(texts_for_embedding)
+
+  if not embeddings or len(embeddings) != len(texts_for_embedding):
+    return []
+
+  context_embedding = embeddings[0]
+  keyword_embeddings = embeddings[1:]
+
+  # Compute similarity per keyword
+  scored_keywords = []
+  for keyword, emb in zip(candidate_keywords, keyword_embeddings):
+    score = CosignSimilarity.SingleVector(context_embedding, emb)
+    scored_keywords.append((keyword, score))
+
+  # Sort by similarity score descending
+  scored_keywords.sort(key=lambda x: x[1], reverse=True)
+
+  # Return just the keywords, top_k capped by available length
+  top_k = min(top_k, len(scored_keywords))
+  return [kw for kw, _ in scored_keywords[:top_k]]
+
+
+async def SummarizeDocument__OLD(
   content: str,
   context: str,
   llmObject: LLM_Object,
@@ -209,43 +350,3 @@ async def SummarizeDocument(
         pass
 
   return summarizedContent
-
-
-async def UploadProcessedDocuments(
-  originalBucketName: str,
-  summarizedBucketName: str,
-  originalContent: str,
-  summarizedContent: str,
-  originalFileName: str,
-  summarizedFileName: str,
-  serverResponse: ServerResponse,
-  minioObject: MinIO_Object,
-  postgresObject: Postgres_Object,
-) -> ServerResponseObject:
-  """Uploads the summarized document to bucket and stores the summarized and original reference in the database"""
-  # Upload original file to the storage server.
-  result = minioObject.UploadDocumentToStorageServer(
-    originalBucketName, originalContent, originalFileName
-  )
-  if not result.Success:
-    return result
-  # Upload summarized file to the storage server.
-  result = minioObject.UploadDocumentToStorageServer(
-    summarizedBucketName, summarizedContent, summarizedFileName
-  )
-  if not result.Success:
-    return result
-
-  # Upload the file name to our referencing database
-  result = await postgresObject.RegisterDocument(
-    f'summarizedDocumentReference_{summarizedBucketName}',
-    f'{originalBucketName}/{originalFileName}',
-    f'{summarizedBucketName}/{summarizedFileName}',
-  )
-  if not result.Success:
-    return result
-
-  # document upload complete
-  result.Success = True
-  result.Message = 'Summarized document upload complete.'
-  return serverResponse.GenerateServerResponse(result)

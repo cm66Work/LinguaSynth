@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import json
 import APIs.UserQuery
 from ObjectInterfaces.Typesense_Object import Typesense_Object
@@ -12,7 +13,9 @@ import APIs.GenerateSchema
 import APIs.UploadSchema
 import APIs.IndexNewDocuments
 import APIs.DocumentIndexing
+import APIs.Iterate
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 # --- Objects ---
 llmObject = LLM_Object()
@@ -106,7 +109,6 @@ async def ProcessNewDocuments():
       minioObject,
       llmObject,
       postgresObject,
-      1,
     ):
       response = json.dumps(vars(response)) + '\n'
       yield response
@@ -150,22 +152,71 @@ async def SchemaGeneration():
   return StreamingResponse(EventStream(), media_type='application/json')
 
 
-@app.post('/start-indexing-documents/')
+class DefaultResponseSuccessModel(BaseModel):
+  Success: bool = Field(
+    True,
+    description='Indicates that the pipeline has completed successfully without any internal errors being raised.',
+  )
+  Message: str = Field(
+    description='String message of the current instal system log whilst processing the pipeline associated to this API'
+  )
+  Finished: bool = Field(
+    True,
+    description='Signals that the current pipeline has finished running internally.',
+  )
+
+
+class DefaultResponseFailedModel(DefaultResponseSuccessModel):
+  Success: bool = Field(
+    False,
+    description='Indicates that the pipeline has encountered an internal error at some stage.',
+  )
+  Message: str = Field(
+    description='Internal error or exception log message that was thrown when the internal error occurred'
+  )
+
+
+@dataclass
+class IndexingProgressDataModel(BaseModel):
+  total_documents: int = Field(
+    description='The total number of internal documents that the system has to index before the pipeline is completed'
+  )
+  processed_documents: int = Field(
+    description='The current number of documents that the system has processed.'
+  )
+
+
+class IndexResponseModel(DefaultResponseSuccessModel):
+  Data: IndexingProgressDataModel = Field(description='')
+
+
+@app.post(
+  path='/start-indexing-documents/',
+  response_class=StreamingResponse,
+  responses={
+    200: {
+      'description': 'Event stream of ServerResponseObject progress containing information related to the current progress of the system as it indexed newly uploaded documents.',
+      'content': {
+        'text/event-stream': {'schema': IndexResponseModel.model_json_schema()}
+      },
+    },
+    500: {
+      'description': 'Internal server failure occurred during processing.',
+      'content': {
+        'text/event-stream': {
+          'schema': DefaultResponseFailedModel.model_json_schema()
+        }
+      },
+    },
+  },
+)
 async def StartDocumentIndexing():
   """
   API call to index orphaned documented into their relevant typesense collections.
 
   Args:
   Return:
-      Streaming response Event Stream (ServerResponseObject):
-        {
-          Success (bool): if the operation had succeeded without an internal error, see response message if false.
-          Message (str): Returned internal message for the current action or state of system.
-          Data (dict): {
-            'total_documents': integer,
-            'processed_documents': integer
-          }
-        }
+      Streaming response Event Stream (ServerResponseObject)
   """
 
   async def EventStream():
@@ -188,3 +239,8 @@ async def DeleteAllSchemas():
 @app.post('/get-all-schemas')
 async def GetAllSchemas():
   return typesenseObject.GetAllSchemas()
+
+
+@app.post('/iterate/')
+async def IterateAPI():
+  return await APIs.Iterate.Iterate(typesenseObject, minioObject)
