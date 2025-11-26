@@ -1,12 +1,7 @@
-import json
-import re
 from Utils.DocumentHelpers import DocumentHelper
-from typing import List
 from APIs.UploadProcessedDocuments import UploadProcessedDocuments
 from ObjectInterfaces.MinIO_Object import MinIO_Object
-from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
-from Utils import CosignSimilarity, JsonUtils
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
 
@@ -95,7 +90,7 @@ async def ProcessNewDocuments(
       f'{bucketRootName}-processed',
       summarizedBucketName,
       originalContent,
-      str(extractedKeywords)[1:-1],
+      str(extractedKeywords)[1:-1].replace("'", ''),
       f'{document.object_name.split(".")[0]}-processed.txt',
       summarizedDocumentName,
       serverResponse=serverResponse,
