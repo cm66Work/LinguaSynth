@@ -3,7 +3,7 @@ from fastapi import UploadFile
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.ServerResponse import ServerResponse
 
-DATABASE_NAME = 'raw_database'
+DATABASE_NAME = 'raw-database'
 
 
 class Uploader:
@@ -22,8 +22,8 @@ class Uploader:
     content = (await file.read()).decode('utf-8')
 
     validation = self.__Validation(content, file.filename)  # type: ignore
-    if validation[1]:
-      currentResponse.Message = validation[0]
+    currentResponse.Message = validation[0]
+    if not validation[1]:
       return self.serverResponse.GenerateServerResponse(currentResponse)
 
     result = await self.__UploadDocument(content, file.filename)  # type: ignore
@@ -43,7 +43,7 @@ class Uploader:
     if content == '':
       return 'File content is empty.', False
 
-    return f'New document: {fileName} uploaded.', True
+    return f'New document: {fileName} uploaded to bucket: {DATABASE_NAME}', True
 
   async def __UploadDocument(self, content: str, fileName: str):
     return self.minio.UploadDocumentToStorageServer(
