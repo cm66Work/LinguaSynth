@@ -5,13 +5,12 @@ from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, HTTPException, UploadFile
 from Utils.ServerResponse import ServerResponse
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
-import APIs.GenerateSchema
+import APIs.Schema.GenerateSchema
 import APIs.UploadSchema
-import APIs.IndexNewDocuments
 import APIs.DocumentIndexing
 import APIs.Iterate
 from fastapi.responses import StreamingResponse
@@ -25,6 +24,7 @@ postgresObject = Postgres_Object()
 typesenseObject = Typesense_Object()
 
 serverResponse = ServerResponse('API', 'api_log')
+FileUploader = APIs.UploadNewDocument.Uploader(minioObject, serverResponse)
 
 
 # --- General ---
@@ -78,9 +78,11 @@ async def UploadNewDocument(file: UploadFile):
           Data (dict): The internal result of the file upload to minio (Ignore and use Success for non debugging actions.)
         }
   """
-  return await APIs.UploadNewDocument.UploadNewDocument(
-    'testing', file, minioObject, serverResponse
-  )
+  result = await FileUploader.UploadNewDocument(file)
+  if not result.Success:
+    raise HTTPException(status_code=500, detail=result.Message)
+  else:
+    raise HTTPException(status_code=200, detail=result.Message)
 
 
 @app.post('/process-new-uploaded-documents/')
@@ -131,9 +133,10 @@ async def SchemaGeneration():
           }
         }
   """
+  schemaGenerator = APIs.Schema.GenerateSchema.GenerateSchema()
 
   async def EventStream():
-    async for response in APIs.GenerateSchema.SchemaGeneration(
+    async for response in schemaGenerator.SplitSchema(
       minioObject, llmObject, typesenseObject, serverResponse
     ):
       # Convert the yielded dict to JSON
