@@ -7,6 +7,9 @@ from APIs.ProcessingPipeline.DocumentProcessors.IDocumentProcessor import (
 from APIs.ProcessingPipeline.DocumentProcessors.KeywordExtractionDocumentProcessor import (
   KeywordExtractionDocumentProcessor,
 )
+from APIs.ProcessingPipeline.DocumentProcessors.RAKEExtraction import (
+  RAKEExtraction,
+)
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.ServerResponse import ServerResponseV2
 from Utils.ServerResponse import ServerResponseObject
@@ -39,6 +42,12 @@ class FileProcessingPipelines:
         self.minio, self.serverResponse, 'keyword-extraction-raw-database'
       ),
       'key_word_extraction',
+    )
+    self.AddProcessor(
+      RAKEExtraction(
+        self.minio, self.serverResponse, 'rake-extraction-raw-database'
+      ),
+      'rake_extraction',
     )
 
   def AddProcessor(self, processor: IDocumentProcessor, processName: str):

@@ -1,3 +1,5 @@
+import time
+from sys import getsizeof
 from dataclasses import dataclass, field
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from APIs.UploadNewDocument import Uploader
@@ -37,4 +39,8 @@ class IDocumentProcessor:
     content: str,
     fileName: str,
   ) -> tuple[str, bool, StatisticsObject]:
+    self.fileName = fileName
+    self.statisticsObject: StatisticsObject = StatisticsObject(
+      fileName, time.time() * 1000, -1, -1, getsizeof(content), -1
+    )
     return 'placeholder', False, StatisticsObject('', 0, 0, 0, 0, 0)

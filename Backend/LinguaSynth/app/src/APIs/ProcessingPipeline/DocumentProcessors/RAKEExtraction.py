@@ -1,40 +1,38 @@
-from sys import getsizeof
 import time
+import nltk
+from sys import getsizeof
 from typing import override
+from rake_nltk import Rake
 from APIs.ProcessingPipeline.DocumentProcessors.IDocumentProcessor import (
   IDocumentProcessor,
   StatisticsObject,
 )
 from ObjectInterfaces.MinIO_Object import MinIO_Object
-from Utils.DocumentHelpers import DocumentHelper
 from Utils.ServerResponse import ServerResponseV2
 
 
-class KeywordExtractionDocumentProcessor(IDocumentProcessor):
+class RAKEExtraction(IDocumentProcessor):
   @override
   def __init__(
     self,
     minio: MinIO_Object,
     serverResponse: ServerResponseV2,
     bucketName: str,
-    wordFrequency: float = 0.3,
+    wordFrequency: float = 5,
   ):
     super().__init__(minio, serverResponse, bucketName)
     self.wordFrequency = wordFrequency
+    nltk.download('punkt')
+    nltk.download('punkt_tab')
+    nltk.download('stopwords')
 
   async def ProcessDocument(
-    self,
-    content: str,
-    fileName: str,
+    self, content: str, fileName: str
   ) -> tuple[str, bool, StatisticsObject]:
     await super().ProcessDocument(content, fileName)
-    # Extract the keywords form the current document.
-    extractedKeywords = DocumentHelper.ExtractKeywords(
-      content, self.wordFrequency
-    )
 
-    extractedKeywords = str(extractedKeywords)[1:-1].replace("'", '')
-
+    # run the RAKE
+    extractedKeywords = str(self.RAKE(content))[1:-1].replace("'", '')
     # calculate the statistics for the process.
     self.statisticsObject.EndTime = time.time() * 1000
     self.statisticsObject.ProcessingTime = (
@@ -48,3 +46,13 @@ class KeywordExtractionDocumentProcessor(IDocumentProcessor):
     )
 
     return uploadResult.Message, uploadResult.Success, self.statisticsObject
+
+  def RAKE(self, content: str):
+    rake = Rake()
+    rake.extract_keywords_from_text(content)
+    extractedWords: list[str] = []
+    for rating, keyword in rake.get_ranked_phrases_with_scores():
+      if rating > self.wordFrequency:
+        extractedWords.append(keyword)
+
+    return extractedWords
