@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 import json
 import APIs.UserQuery
 from ObjectInterfaces.Typesense_Object import Typesense_Object
@@ -6,7 +6,7 @@ from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from fastapi import FastAPI, HTTPException, UploadFile
-from Utils.ServerResponse import ServerResponse
+from Utils.ServerResponse import ServerResponse, ServerResponseV2
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.Schema.GenerateSchema
@@ -24,7 +24,13 @@ postgresObject = Postgres_Object()
 typesenseObject = Typesense_Object()
 
 serverResponse = ServerResponse('API', 'api_log')
-FileUploader = APIs.UploadNewDocument.Uploader(minioObject, serverResponse)
+serverResponseV2: ServerResponseV2 = ServerResponseV2('API', 'api_log')
+NewFileUploader = APIs.UploadNewDocument.Uploader(
+  minioObject, serverResponseV2, 'raw-database'
+)
+DocumentProcessor = APIs.ProcessNewDocuments.DocumentProcessor(
+  minioObject, serverResponseV2
+)
 
 
 # --- General ---
@@ -78,7 +84,7 @@ async def UploadNewDocument(file: UploadFile):
           Data (dict): The internal result of the file upload to minio (Ignore and use Success for non debugging actions.)
         }
   """
-  result = await FileUploader.UploadNewDocument(file)
+  result = await NewFileUploader.UploadNewFile(file)
   if not result.Success:
     raise HTTPException(status_code=500, detail=result.Message)
   else:
@@ -105,13 +111,12 @@ async def ProcessNewDocuments():
   """
 
   async def EventStream():
-    async for response in APIs.ProcessNewDocuments.ProcessNewDocuments(
-      'testing',
-      serverResponse,
-      minioObject,
-      postgresObject,
+    async for response in DocumentProcessor.ProcessDocumentsInBucket(
+      'raw-database', postgresObject
     ):
-      response = json.dumps(vars(response)) + '\n'
+      print(response, '\n\n')
+      # response = json.dumps(vars(response)) + '\n'
+      response = json.dumps(asdict(response)) + '\n'
       yield response
 
   return StreamingResponse(EventStream(), media_type='application/json')

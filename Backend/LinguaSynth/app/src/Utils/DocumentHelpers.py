@@ -3,7 +3,9 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 
 class DocumentHelper:
   @staticmethod
-  def ExtractKeywords(content: str, frequency: float) -> list[str]:
+  def ExtractKeywords(
+    content: str, frequency: float, minDF: float = 2
+  ) -> list[str]:
     """
     Extracts the top keywords from the given content.
     Args:
@@ -14,13 +16,14 @@ class DocumentHelper:
         list (list[str]): list of all extracted keywords from the content that appear a number of times equal too or more than the frequency.
     """
     countVectorizer = CountVectorizer(
-      stop_words='english', max_df=0.9, min_df=2
+      stop_words='english', max_df=frequency, min_df=minDF
     )
     paragraphs = [
       paragraphs.strip()
       for paragraphs in content.split('\n')
       if len(paragraphs) > 0
     ]
+
     wordCount = countVectorizer.fit_transform(paragraphs)
     features = countVectorizer.get_feature_names_out()
 
