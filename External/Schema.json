@@ -1,0 +1,17 @@
+{
+  "name": "desserts",
+  "fields": [
+    { "name": "dessert_name", "type": "string" },
+    { "name": "category", "type": "string", "facet": true }, 
+    { "name": "variation", "type": "string", "optional": true }, 
+    { "name": "ingredients", "type": "string[]", "facet": true },
+    { "name": "texture", "type": "string", "optional": true }, 
+    { "name": "toppings", "type": "string[]", "optional": true },
+    { "name": "origin_country", "type": "string", "facet": true },
+    { "name": "origin_city", "type": "string", "optional": true },
+    { "name": "first_appearance_year", "type": "int32", "optional": true },
+    { "name": "historical_notes", "type": "string", "optional": true },
+    { "name": "cultural_significance", "type": "string", "optional": true },
+    { "name": "serving_styles", "type": "string[]", "optional": true }
+  ]
+}

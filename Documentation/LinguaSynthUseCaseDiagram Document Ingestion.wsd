@@ -1,0 +1,44 @@
+@startuml LinguaSynth_UseCaseDiagram_DocumentIngestion
+title LinguaSynth Use Case Diagram: Document Ingestion
+left to right direction
+
+' # Define Actors
+actor "Admin" as admin
+actor "Reference Database" as referenceDatabase
+actor "Typesense Server" as typesenseServer
+actor "Ollama LLM" as LLM
+
+' # Define Use Cases
+rectangle LinguaSynth {
+  usecase "Upload Document" as uploadDocument
+  usecase "Get Document Reference" as getDocumentReference
+  usecase "Create Document Reference" as createDocumentReference
+  usecase "Load Schema Template" as loadSchemaTemplate
+  usecase "Generate Schema Template" as generateSchemaTemplate
+  usecase "Summarize Document" as summarizeDocument
+}
+
+' # relations
+admin -down- uploadDocument
+uploadDocument -down-- typesenseServer
+
+uploadDocument .right.|> getDocumentReference : <<include>>
+getDocumentReference --down-- referenceDatabase
+getDocumentReference <|.left... createDocumentReference : <<extend>>
+
+uploadDocument ..|> loadSchemaTemplate : <<include>>
+loadSchemaTemplate -down- referenceDatabase
+loadSchemaTemplate <|.left. generateSchemaTemplate : <<extend>>
+generateSchemaTemplate -down- LLM
+
+uploadDocument ..|> summarizeDocument : <<include>>
+summarizeDocument -- LLM
+
+' ## Organization ##
+LinguaSynth ---[hidden]down- typesenseServer
+' typesenseServer -[hidden]right- LLM
+typesenseServer -[hidden]right- LLM
+LLM -[hidden]right- referenceDatabase
+' LLM -[hidden]right- referenceDatabase 
+
+@enduml

@@ -1,0 +1,34 @@
+# Typesense
+# /Backend/.env <- this is used for internal testing
+/Backend/Typesense/data/*
+
+/Backend/Typesense/data/*
+/Backend/LinguaSynth/data/*
+/Backend/Ollama/data/*
+/Backend/Postgres/data/*
+/Backend/MinIO/data/*
+
+/External/Private
+/External/Private/*
+
+# virtual environments
+**.venv
+
+# pytest
+**/__pycache__
+**/__pycache__/*
+**.pyc 
+/Backend/LinguaSynth/.pytest_cache
+
+# Logs
+Backend/LinguaSynth/app/Logs/*
+
+# auto generated
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/dependency_links.txt
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/PKG-INFO
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/SOURCES.txt
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/top_level.txt
+Backend/LinguaSynth/app/src/LinguaSynth.egg-info/requires.txt
+
+Backend/LinguaSynth/app/temp
+Backend/LinguaSynth/app/src/Output.json

@@ -1,0 +1,253 @@
+from dataclasses import asdict, dataclass
+import json
+import APIs.UserQuery
+from ObjectInterfaces.Typesense_Object import Typesense_Object
+from ObjectInterfaces.MinIO_Object import MinIO_Object
+from ObjectInterfaces.PostgresObject import Postgres_Object
+from ObjectInterfaces.LLM_Object import LLM_Object
+from fastapi import FastAPI, HTTPException, UploadFile
+from Utils.ServerResponse import ServerResponse, ServerResponseV2
+import APIs.UploadNewDocument
+import APIs.ProcessNewDocuments
+import APIs.Schema.GenerateSchema
+import APIs.UploadSchema
+import APIs.DocumentIndexing
+import APIs.Iterate
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+
+# --- Objects ---
+llmObject = LLM_Object()
+app = FastAPI()
+minioObject = MinIO_Object()
+postgresObject = Postgres_Object()
+typesenseObject = Typesense_Object()
+
+serverResponse = ServerResponse('API', 'api_log')
+serverResponseV2: ServerResponseV2 = ServerResponseV2('API', 'api_log')
+NewFileUploader = APIs.UploadNewDocument.Uploader(
+  minioObject, serverResponseV2, 'raw-database'
+)
+DocumentProcessor = APIs.ProcessNewDocuments.DocumentProcessor(
+  minioObject, serverResponseV2
+)
+
+
+# --- General ---
+@app.get('/')
+async def root():
+  return {'message:': 'Hello World!'}
+
+
+@app.get('/healthcheck')
+async def HealthCheck():
+  return {'message': 'Healthy'}
+
+
+@app.post('/question/')
+async def UserQuestion(question: str):
+  """
+  API call for the user asking a question to the systems
+
+  Args::
+      question (str): The users question.
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+      {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data ({'answer': generated response as string, 'reference_documents: names of all documents used for answer generation as list[str]})
+      }
+  """
+
+  async def EventStream():
+    async for response in APIs.UserQuery.UserQuery(
+      serverResponse, llmObject, typesenseObject, question, minioObject
+    ):
+      response = json.dumps(vars(response)) + '\n'
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+@app.post('/upload-document/')
+async def UploadNewDocument(file: UploadFile):
+  """
+  API call for uploading a new document to the systems storage.
+
+  Args:
+      file (UploadFile): The file to be uploaded to the system
+  Return:
+      ServerResponseObject: {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): The internal result of the file upload to minio (Ignore and use Success for non debugging actions.)
+        }
+  """
+  result = await NewFileUploader.UploadNewFile(file)
+  if not result.Success:
+    raise HTTPException(status_code=500, detail=result.Message)
+  else:
+    raise HTTPException(status_code=200, detail=result.Message)
+
+
+@app.post('/process-new-uploaded-documents/')
+async def ProcessNewDocuments():
+  """
+  API call for processing un-processed documents into the format the internal system can use.
+
+  Args:
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+        {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): {
+            'document_count' : integer,
+            'processed_document_count : integer,
+            'document_names: list[str] - list of all documents that have been processed.
+          }
+        }
+  """
+
+  async def EventStream():
+    async for response in DocumentProcessor.ProcessDocumentsInBucket(
+      'raw-database', postgresObject
+    ):
+      # print(response, '\n\n')
+      # response = json.dumps(vars(response)) + '\n'
+      response = json.dumps(asdict(response)) + '\n'
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+@app.post('/generate-schema/')
+async def SchemaGeneration():
+  """
+  API call to manually trigger typesense schema generation on testing schema, used for internal testing only.
+
+  Args:
+  Return:
+      Streaming response Event Stream (ServerResponseObject):
+        {
+          Success (bool): if the operation had succeeded without an internal error, see response message if false.
+          Message (str): Returned internal message for the current action or state of system.
+          Data (dict): {
+            'schema' : CollectionSchema - generated typesense collection schema.
+          }
+        }
+  """
+  schemaGenerator = APIs.Schema.GenerateSchema.GenerateSchema()
+
+  async def EventStream():
+    async for response in schemaGenerator.SplitSchema(
+      minioObject, llmObject, typesenseObject, serverResponse
+    ):
+      # Convert the yielded dict to JSON
+      yield json.dumps(vars(response)) + '\n'
+      schema = response.Data['schema']
+
+      # Now try to upload the new schema
+      async for response in APIs.UploadSchema.UploadSchema(
+        schema,
+        serverResponse,
+        typesenseObject,
+      ):
+        yield json.dumps(vars(response)) + '\n'
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+class DefaultResponseSuccessModel(BaseModel):
+  Success: bool = Field(
+    True,
+    description='Indicates that the pipeline has completed successfully without any internal errors being raised.',
+  )
+  Message: str = Field(
+    description='String message of the current instal system log whilst processing the pipeline associated to this API'
+  )
+  Finished: bool = Field(
+    True,
+    description='Signals that the current pipeline has finished running internally.',
+  )
+
+
+class DefaultResponseFailedModel(DefaultResponseSuccessModel):
+  Success: bool = Field(
+    False,
+    description='Indicates that the pipeline has encountered an internal error at some stage.',
+  )
+  Message: str = Field(
+    description='Internal error or exception log message that was thrown when the internal error occurred'
+  )
+
+
+@dataclass
+class IndexingProgressDataModel(BaseModel):
+  total_documents: int = Field(
+    description='The total number of internal documents that the system has to index before the pipeline is completed'
+  )
+  processed_documents: int = Field(
+    description='The current number of documents that the system has processed.'
+  )
+
+
+class IndexResponseModel(DefaultResponseSuccessModel):
+  Data: IndexingProgressDataModel = Field(description='')
+
+
+@app.post(
+  path='/start-indexing-documents/',
+  response_class=StreamingResponse,
+  responses={
+    200: {
+      'description': 'Event stream of ServerResponseObject progress containing information related to the current progress of the system as it indexed newly uploaded documents.',
+      'content': {
+        'text/event-stream': {'schema': IndexResponseModel.model_json_schema()}
+      },
+    },
+    500: {
+      'description': 'Internal server failure occurred during processing.',
+      'content': {
+        'text/event-stream': {
+          'schema': DefaultResponseFailedModel.model_json_schema()
+        }
+      },
+    },
+  },
+)
+async def StartDocumentIndexing():
+  """
+  API call to index orphaned documented into their relevant typesense collections.
+
+  Args:
+  Return:
+      Streaming response Event Stream (ServerResponseObject)
+  """
+
+  async def EventStream():
+    async for response in APIs.DocumentIndexing.IndexNewDocuments(
+      serverResponse, typesenseObject, minioObject, llmObject
+    ):
+      response = json.dumps(vars(response)) + '\n'
+      print('response: ', response)
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+@app.post('/delete-all-schemas/')
+async def DeleteAllSchemas():
+  for schema in typesenseObject.GetAllSchemas():
+    typesenseObject.DeleteSchema(schema['name'])
+
+
+@app.post('/get-all-schemas')
+async def GetAllSchemas():
+  return typesenseObject.GetAllSchemas()
+
+
+@app.post('/iterate/')
+async def IterateAPI():
+  return await APIs.Iterate.Iterate(typesenseObject, minioObject)

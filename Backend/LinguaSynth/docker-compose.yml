@@ -1,0 +1,44 @@
+# Separate docker compose for LinguaSynth
+services:
+  backend:
+    container_name: linguaSynth
+    build: .
+    ports:
+      - "8000:${LINGUASYNTH_PORT}"
+    environment:
+      UVICORN_RELOAD: true
+      # Minio
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_username
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      MINIO_ADDRESS: ${MINIO_ADDRESS}
+      MINIO_API_PORT: ${MINIO_API_PORT}
+      # Postgres
+      POSTGRES_USER_FILE: /run/secrets/postgres_username
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_ADDRESS: ${POSTGRES_ADDRESS}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Ollama
+      OLLAMA_ADDRESS: ${OLLAMA_ADDRESS}
+      OLLAMA_PORT: ${OLLAMA_PORT}
+      # Typesense
+      TYPESENSE_HOST: ${TYPESENSE_HOST}
+      TYPESENSE_PORT: ${TYPESENSE_PORT}
+      TYPESENSE_PROTOCOL: ${TYPESENSE_PROTOCOL}
+      TYPESENSE_API_KEY: $(cat /run/secrets/typesense_api_key)
+      TYPESENSE_SEARCH_API_KEY: $(cat /run/secrets/typesense_search_api_key)
+      
+    secrets:
+      # MinIO
+      - minio_root_username
+      - minio_root_password
+      # Postgres
+      - postgres_username
+      - postgres_password
+      # Typesense
+      - typesense_api_key
+      - typesense_search_api_key
+    volumes:
+      - ./app:/app
+    networks:
+      - private
+    tty: true

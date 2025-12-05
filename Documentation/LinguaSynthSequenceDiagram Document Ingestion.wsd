@@ -1,0 +1,37 @@
+@startuml LinguaSynthSequenceDiagram_DocumentIngestion
+title LinguaSynth Sequence Diagram: Document Ingestion
+
+participant "Admin" as admin
+participant "Document \n Uploader" as documentUploader
+participant "Document Reference \n Manager" as documentReferenceManager
+participant "Generation \n Manager" as generationManager
+participant "Server \n Manager" as serverManager
+
+admin -> documentUploader : uploads new document
+
+' gard against duplicate document processing
+alt document exists
+documentUploader --> admin : <file already error message>
+
+'does the document schema template exists?
+documentUploader ->  documentReferenceManager : Get schema template
+documentReferenceManager --> documentUploader : schema template
+alt invalid or null schema template 
+  documentUploader -> generationManager : document for schema generation
+  generationManager --> documentUploader : generated schema
+  documentUploader -> documentReferenceManager : save schema template 
+end
+
+' summarize the document so we can ingest a smaller document and save space
+documentUploader -> generationManager : summarize document as text
+generationManager --> documentUploader : summarized document as text
+
+' Store document reference
+documentUploader -> documentReferenceManager : store document reference 
+
+documentUploader -> serverManager : ingest summarized document
+serverManager --> documentUploader : <response message>
+
+' Done
+documentUploader --> admin
+@enduml

@@ -1,0 +1,37 @@
+[project]
+name = "LinguaSynth"
+version = "0.0.1"
+description = "Control interface for the LinguaSynth system."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.116.1",
+    "minio==7.2.16",
+    "numpy>=2.3.3",
+    "ollama==0.5.3",
+    "postgres==4.0",
+    "python-multipart==0.0.20",
+    "typesense>=1.1.1",
+    "uvicorn==0.35.0",
+    "scikit-learn>=1.7.2",
+    "scipy>=1.16.2",
+    "rake-nltk>=1.0.6",
+    "yake>=0.6.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx", # Async testing
+    "ruff==0.12.12",
+]
+package = true
+
+[tool.ruff]
+line-length = 80
+indent-width = 2
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "single"

@@ -1,0 +1,17 @@
+# Compose file for the ollama LLM service
+services:
+  ollama:
+    image: ollama/ollama:0.11.10
+    container_name: "ollama_server"
+    restart: on-failure
+    ports:
+      - "11434:${OLLAMA_PORT}"
+    environment:
+      OLLAMA_MAX_LOADED_MODELS: "3"
+      OLLAMA_NUM_PARALLEL: "3"
+      OLLAMA_DEBUG: "1"
+      OLLAMA_KEEP_ALIVE: "15s"
+    volumes:
+      - ./data:/root/.ollama
+    networks:
+      - private

@@ -1,0 +1,26 @@
+@startuml LinguaSynthSequenceDiagram_AskingQuestions
+title LinguaSynth Sequence Diagram: Asking Questions 
+
+participant "User" as user 
+participant "Client" as client 
+participant "Document Reference \n Manager" as documentReferenceManager
+participant "Generation \n Manager" as generationManager
+participant "Server \n Manager" as serverManager
+
+user -> client : user question
+
+' query typesense for related documents
+client -> serverManager : user question
+serverManager --> client : related files
+' generate answer using related summarized documents from typesense
+alt insufficient quantity of related related files
+  client --> user : <insufficient files found error message>
+end
+alt to many related files found
+  client --> user : <to many files found error message>
+end
+client -> generationManager : user question + summarized documents
+generationManager -->> client : generated answer
+
+client -->> user : generated answer and \n reference documents
+@enduml

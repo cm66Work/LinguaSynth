@@ -1,0 +1,31 @@
+# Compose files for typesense server
+services:
+  typesense:
+    image: typesense/typesense:29.0
+    container_name: "typesense_server"
+    restart: on-failure
+    ports:
+      - "8108:${TYPESENSE_PORT}"
+    volumes:
+      - ./data:/data
+    environment:
+      # Typesense does not support secret files, so we have to read the file value.
+      TYPESENSE_API_KEY: $(cat /run/secrets/typesense_api_key)
+      TYPESENSE_SEARCH_API_KEY: $(cat /run/secrets/typesense_search_api_key)
+      TYPESENSE_PROTOCOL: ${TYPESENSE_PROTOCOL}
+      TYPESENSE_HOST: ${TYPESENSE_HOST}
+      TYPESENSE_DATA_DIR: /data
+    command: '--enable-cors'
+    depends_on:
+      - ollama
+    secrets:
+      - typesense_api_key
+      - typesense_search_api_key
+    networks:
+      - private
+    healthcheck:
+      test: [ "CMD", "curl http://localhost:${TYPESENSE_PORT}/health" ]
+      interval: 1m
+      timeout: 1m30s
+      retries: 5
+      start_period: 30s

@@ -1,0 +1,33 @@
+name: pipeline
+on:
+  pull_request:
+    branches:
+      - 'Development'
+  push:
+    branches:
+      - 'Development'
+
+jobs:
+  deploy:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: 'Development'
+      - name: Run docker compose
+        uses: hoverkraft-tech/compose-action@v2.0.1
+        with:
+          compose-file: "./Backend/docker-compose.yml"
+  pytests:
+    name: LinguaSynth run pytests 
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          ref: 'Development'
+      - name: Run unit tests on LinguaSynth container
+        run: make test
+        working-directory: ./Backend
+        # run: docker exec -it linguaSynth uv run -m pytest
