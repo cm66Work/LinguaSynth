@@ -114,7 +114,7 @@ async def ProcessNewDocuments():
     async for response in DocumentProcessor.ProcessDocumentsInBucket(
       'raw-database', postgresObject
     ):
-      print(response, '\n\n')
+      # print(response, '\n\n')
       # response = json.dumps(vars(response)) + '\n'
       response = json.dumps(asdict(response)) + '\n'
       yield response

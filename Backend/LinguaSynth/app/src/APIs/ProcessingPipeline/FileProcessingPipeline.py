@@ -10,6 +10,9 @@ from APIs.ProcessingPipeline.DocumentProcessors.KeywordExtractionDocumentProcess
 from APIs.ProcessingPipeline.DocumentProcessors.RAKEExtraction import (
   RAKEExtraction,
 )
+from APIs.ProcessingPipeline.DocumentProcessors.YAKEExtraction import (
+  YAKEExtraction,
+)
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.ServerResponse import ServerResponseV2
 from Utils.ServerResponse import ServerResponseObject
@@ -48,6 +51,12 @@ class FileProcessingPipelines:
         self.minio, self.serverResponse, 'rake-extraction-raw-database'
       ),
       'rake_extraction',
+    )
+    self.AddProcessor(
+      YAKEExtraction(
+        self.minio, self.serverResponse, 'yake-extraction-raw-database'
+      ),
+      'yake_extraction',
     )
 
   def AddProcessor(self, processor: IDocumentProcessor, processName: str):

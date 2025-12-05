@@ -1,19 +1,25 @@
 from Utils.ServerResponse import ServerResponseObject
 from fastapi import UploadFile
 from ObjectInterfaces.MinIO_Object import MinIO_Object
-from Utils.ServerResponse import ServerResponse
-
-DATABASE_NAME = 'raw-database'
+from Utils.ServerResponse import ServerResponseV2
 
 
 class Uploader:
   def __init__(
-    self, minio: MinIO_Object, serverResponse: ServerResponse
+    self, minio: MinIO_Object, serverResponse: ServerResponseV2, bucketName: str
   ) -> None:
     self.minio = minio
     self.serverResponse = serverResponse
+    self.bucketName = bucketName
 
-  async def UploadNewDocument(
+  async def UploadDocumentContentAsFile(self, content: str, fileName: str):
+    return self.minio.UploadDocumentToStorageServer(
+      bucketName=self.bucketName,
+      content=content,
+      documentName=fileName,
+    )
+
+  async def UploadNewFile(
     self,
     file: UploadFile,
   ) -> ServerResponseObject:
@@ -26,7 +32,7 @@ class Uploader:
     if not validation[1]:
       return self.serverResponse.GenerateServerResponse(currentResponse)
 
-    result = await self.__UploadDocument(content, file.filename)  # type: ignore
+    result = await self.UploadDocumentContentAsFile(content, file.filename)  # type: ignore
     if not result.Success:
       currentResponse.Message = (
         f'failed to upload file for reason: {result.Message}'
@@ -43,11 +49,7 @@ class Uploader:
     if content == '':
       return 'File content is empty.', False
 
-    return f'New document: {fileName} uploaded to bucket: {DATABASE_NAME}', True
-
-  async def __UploadDocument(self, content: str, fileName: str):
-    return self.minio.UploadDocumentToStorageServer(
-      bucketName=DATABASE_NAME,
-      content=content,
-      documentName=fileName,
+    return (
+      f'New document: {fileName} uploaded to bucket: {self.bucketName}',
+      True,
     )

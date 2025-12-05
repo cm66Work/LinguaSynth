@@ -1,7 +1,8 @@
 import json
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.Typesense_Object import Typesense_Object
-from ObjectInterfaces.LLM_Object import LLM_Object, SchemaSimilarityCalculator
+from ObjectInterfaces.LLM_Object import LLM_Object
+from APIs.Schema.SchemaSimilarityCalculator import SchemaSimilarityCalculator
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 import numpy as np
 from typing import List, Dict

@@ -64,9 +64,9 @@ class DocumentProcessor:
       # print('\n', result[0])
       if result[1]:
         # print(
-        #   await fileUploader.UploadDocumentContentAsFile(
-        #     content, document.object_name
-        #   )
+        await fileUploader.UploadDocumentContentAsFile(
+          content, document.object_name
+        )
         # )
         currentResponse.ProcessResponseObjects = result[0]
         processedDocuments.append(document.object_name)
