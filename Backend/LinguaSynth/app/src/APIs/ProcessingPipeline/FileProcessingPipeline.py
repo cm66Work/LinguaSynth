@@ -14,12 +14,11 @@ from APIs.ProcessingPipeline.DocumentProcessors.YAKEExtraction import (
   YAKEExtraction,
 )
 from ObjectInterfaces.MinIO_Object import MinIO_Object
-from Utils.ServerResponse import ServerResponseV2
-from Utils.ServerResponse import ServerResponseObject
+from Utils.ServerResponse import ServerResponseV2, ServerResponseObject
 
 
 @dataclass
-class PipelineResponseObject(ServerResponseObject):
+class FilePipelineResponseObject(ServerResponseObject):
   TotalTimeToComplete: float = 0
   AverageTimeToProcessEachDocument: float = 0.0
   TotalDocumentsProcessed: int = 0
@@ -37,9 +36,9 @@ class FileProcessingPipelines:
     self.minio = minio
     self.pipelineResponseObject: list[DocumentResponseObject] = []
     self.serverResponse = serverResponse
-    self.__initProcessors()
+    self.__InitProcessors()
 
-  def __initProcessors(self):
+  def __InitProcessors(self):
     self.AddProcessor(
       KeywordExtractionDocumentProcessor(
         self.minio, self.serverResponse, 'keyword-extraction-raw-database'

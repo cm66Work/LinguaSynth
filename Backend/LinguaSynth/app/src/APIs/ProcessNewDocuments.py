@@ -1,9 +1,8 @@
-from typing import Any, AsyncGenerator, Generator
+from typing import Any, AsyncGenerator
 from APIs.ProcessingPipeline.FileProcessingPipeline import (
   FileProcessingPipelines,
-  PipelineResponseObject,
+  FilePipelineResponseObject,
 )
-from APIs.UploadProcessedDocuments import UploadProcessedDocuments
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponseObject, ServerResponseV2
@@ -23,9 +22,8 @@ class DocumentProcessor:
   async def ProcessDocumentsInBucket(
     self,
     bucketName: str,
-    postgresObject,
   ) -> AsyncGenerator[ServerResponseObject, Any]:
-    currentResponse = PipelineResponseObject()
+    currentResponse = FilePipelineResponseObject()
     currentResponse.Message = 'Processing....'
 
     fileProcessingPipeline: FileProcessingPipelines = FileProcessingPipelines(

@@ -9,12 +9,16 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from Utils.ServerResponse import ServerResponse, ServerResponseV2
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
-import APIs.Schema.GenerateSchema
+import APIs.Schema.Schema
 import APIs.UploadSchema
 import APIs.DocumentIndexing
 import APIs.Iterate
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+
+import APIs.ProcessingPipeline
+
+import APIs.ProcessingPipeline.SchemaGeneration
 
 # --- Objects ---
 llmObject = LLM_Object()
@@ -31,6 +35,7 @@ NewFileUploader = APIs.UploadNewDocument.Uploader(
 DocumentProcessor = APIs.ProcessNewDocuments.DocumentProcessor(
   minioObject, serverResponseV2
 )
+SchemaGenerator = APIs.Schema.Schema.Schema(minioObject, serverResponseV2)
 
 
 # --- General ---
@@ -112,7 +117,7 @@ async def ProcessNewDocuments():
 
   async def EventStream():
     async for response in DocumentProcessor.ProcessDocumentsInBucket(
-      'raw-database', postgresObject
+      'raw-database',
     ):
       # print(response, '\n\n')
       # response = json.dumps(vars(response)) + '\n'
@@ -123,11 +128,12 @@ async def ProcessNewDocuments():
 
 
 @app.post('/generate-schema/')
-async def SchemaGeneration():
+async def SchemaGeneration(targetBucketName: str):
   """
   API call to manually trigger typesense schema generation on testing schema, used for internal testing only.
 
   Args:
+    bucketName: (str): The name of the bucket which to generate a new schema for.
   Return:
       Streaming response Event Stream (ServerResponseObject):
         {
@@ -138,23 +144,20 @@ async def SchemaGeneration():
           }
         }
   """
-  schemaGenerator = APIs.Schema.GenerateSchema.GenerateSchema()
 
   async def EventStream():
-    async for response in schemaGenerator.SplitSchema(
-      minioObject, llmObject, typesenseObject, serverResponse
-    ):
+    async for response in SchemaGenerator.Generate(targetBucketName):
       # Convert the yielded dict to JSON
-      yield json.dumps(vars(response)) + '\n'
-      schema = response.Data['schema']
+      yield json.dumps(asdict(response)) + '\n'
+      # schema = response.Data['schema']
 
       # Now try to upload the new schema
-      async for response in APIs.UploadSchema.UploadSchema(
-        schema,
-        serverResponse,
-        typesenseObject,
-      ):
-        yield json.dumps(vars(response)) + '\n'
+      # async for response in APIs.UploadSchema.UploadSchema(
+      #   schema,
+      #   serverResponse,
+      #   typesenseObject,
+      # ):
+      #   yield json.dumps(vars(response)) + '\n'
 
   return StreamingResponse(EventStream(), media_type='application/json')
 
