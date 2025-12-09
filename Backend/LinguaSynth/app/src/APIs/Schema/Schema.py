@@ -74,6 +74,10 @@ class Schema:
     currentResponse.TotalTimeToComplete = (
       time.time() * 1000
     ) - generationStartTime
+    currentResponse.AverageTimeToProcessEachDocument = (
+      currentResponse.TotalTimeToComplete
+      / currentResponse.NumberOfDocumentsProcessed
+    )
     yield self.serverResponse.GenerateServerResponse(currentResponse)
     return
 
