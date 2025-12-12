@@ -19,17 +19,20 @@ from Utils import JsonUtils
 
 class Schema:
   def __init__(
-    self, minio: MinIO_Object, serverResponse: ServerResponseV2
+    self, minio: MinIO_Object, serverResponse: ServerResponseV2, llm: LLM_Object
   ) -> None:
     self.minio = minio
     self.serverResponse = serverResponse
+    self.llm = llm
 
   async def Generate(
     self, targetBucketName: str
   ) -> AsyncGenerator[ServerResponseObject, Any]:
     currentResponse = SchemaPipelineResponseObject()
     currentResponse.Message = 'Processing....'
-    pipeline: SchemaPipeline = SchemaPipeline(self.minio, self.serverResponse)
+    pipeline: SchemaPipeline = SchemaPipeline(
+      self.minio, self.llm, self.serverResponse
+    )
     generationStartTime: float = time.time() * 1000
     # start processing all documents in this bucket using our different processing pipelines.
     if not await self.minio.BucketExists(targetBucketName):

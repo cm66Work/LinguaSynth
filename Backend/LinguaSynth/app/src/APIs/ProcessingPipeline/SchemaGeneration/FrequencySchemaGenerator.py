@@ -124,12 +124,7 @@ class FrequencyDrivenSchemaGenerator(ISchemaGenerator):
     self, keywords: list[str], targetBucketName: str
   ) -> tuple[str, bool, StatisticsObject]:
     await super().GenerateSchema(keywords, targetBucketName)
-    # calculate the statistics for the process.
-    self.statisticsObject.EndTime = time.time() * 1000
-    self.statisticsObject.ProcessingTime = (
-      self.statisticsObject.EndTime - self.statisticsObject.StartTime
-    )
-
+    self.statisticsObject.StartTime = time.time()
     selectedKeywords: list[tuple[str, float]] = self.SelectCandidateFields(
       keywords
     )
@@ -152,13 +147,17 @@ class FrequencyDrivenSchemaGenerator(ISchemaGenerator):
       f'{targetBucketName}-{schemaName}.txt',
     )
 
+    # calculate the statistics for the process.
+    self.statisticsObject.EndTime = time.time() * 1000
+    self.statisticsObject.ProcessingTime = (
+      self.statisticsObject.EndTime - self.statisticsObject.StartTime
+    )
     return uploadResult.Message, uploadResult.Success, self.statisticsObject
 
   def SelectCandidateFields(
     self, keywords: list[str]
   ) -> list[tuple[str, float]]:
     selectedKeywords: list[tuple[str, float]] = []
-    # TODO:: select the highest frequency key words.
     content: str = '.\n'.join(keywords)
     selectedKeywords = self.ExtractKeywords(content, self.wordFrequency)
     selectedKeywords = list(dict.fromkeys(selectedKeywords))

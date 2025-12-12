@@ -2,11 +2,15 @@ from dataclasses import dataclass, field
 from APIs.ProcessingPipeline.SchemaGeneration.FrequencySchemaGenerator import (
   FrequencyDrivenSchemaGenerator,
 )
+from APIs.ProcessingPipeline.SchemaGeneration.KMeansSchemaGenerator import (
+  KMeansSchemaGenerator,
+)
 from APIs.ProcessingPipeline.SchemaGeneration.ISchemaGenerator import (
   GeneratorResponseObject,
   ISchemaGenerator,
   StatisticsObject,
 )
+from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.ServerResponse import ServerResponseV2, ServerResponseObject
 
@@ -24,10 +28,11 @@ class SchemaPipelineResponseObject(ServerResponseObject):
 
 class SchemaPipeline:
   def __init__(
-    self, minio: MinIO_Object, serverResponse: ServerResponseV2
+    self, minio: MinIO_Object, llm: LLM_Object, serverResponse: ServerResponseV2
   ) -> None:
     self.schemaGenerators: list[ISchemaGenerator] = []
     self.minio = minio
+    self.llm = llm
     self.pipelineResponseObjects: list[GeneratorResponseObject] = []
     self.serverResponse = serverResponse
     self.__InitGenerators()
@@ -39,6 +44,12 @@ class SchemaPipeline:
       ),
       'frequency_driven_schema_generation',
     )
+    # self.AddGenerator(
+    #   KMeansSchemaGenerator(
+    #     self.minio, self.serverResponse, 'kmeans', self.llm
+    #   ),
+    #   'clustering_schema_generation',
+    # )
 
   def AddGenerator(self, generator: ISchemaGenerator, processName: str) -> None:
     self.schemaGenerators.append(generator)

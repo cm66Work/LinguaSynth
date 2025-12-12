@@ -35,7 +35,9 @@ NewFileUploader = APIs.UploadNewDocument.Uploader(
 DocumentProcessor = APIs.ProcessNewDocuments.DocumentProcessor(
   minioObject, serverResponseV2
 )
-SchemaGenerator = APIs.Schema.Schema.Schema(minioObject, serverResponseV2)
+SchemaGenerator = APIs.Schema.Schema.Schema(
+  minioObject, serverResponseV2, llmObject
+)
 
 
 # --- General ---
