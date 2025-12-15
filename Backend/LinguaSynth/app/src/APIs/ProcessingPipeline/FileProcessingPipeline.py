@@ -4,14 +4,13 @@ from APIs.ProcessingPipeline.DocumentProcessors.IDocumentProcessor import (
   IDocumentProcessor,
   StatisticsObject,
 )
-from APIs.ProcessingPipeline.DocumentProcessors.KeywordExtractionDocumentProcessor import (
+
+from APIs.ProcessingPipeline.DocumentProcessors import (
   KeywordExtractionDocumentProcessor,
-)
-from APIs.ProcessingPipeline.DocumentProcessors.RAKEExtraction import (
   RAKEExtraction,
-)
-from APIs.ProcessingPipeline.DocumentProcessors.YAKEExtraction import (
   YAKEExtraction,
+  RawTextExtraction,
+  TokenizationExtraction,
 )
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.ServerResponse import ServerResponseV2, ServerResponseObject
@@ -40,22 +39,34 @@ class FileProcessingPipelines:
 
   def __InitProcessors(self):
     self.AddProcessor(
-      KeywordExtractionDocumentProcessor(
+      KeywordExtractionDocumentProcessor.KeywordExtractionDocumentProcessor(
         self.minio, self.serverResponse, 'keyword-extraction-raw-database'
       ),
       'key_word_extraction',
     )
     self.AddProcessor(
-      RAKEExtraction(
+      RAKEExtraction.RAKEExtraction(
         self.minio, self.serverResponse, 'rake-extraction-raw-database'
       ),
       'rake_extraction',
     )
     self.AddProcessor(
-      YAKEExtraction(
+      YAKEExtraction.YAKEExtraction(
         self.minio, self.serverResponse, 'yake-extraction-raw-database'
       ),
       'yake_extraction',
+    )
+    self.AddProcessor(
+      TokenizationExtraction.TokenizationExtraction(
+        self.minio, self.serverResponse, 'token-extraction-raw-database'
+      ),
+      'token_extraction',
+    )
+    self.AddProcessor(
+      RawTextExtraction.RawTextExtraction(
+        self.minio, self.serverResponse, 'raw-text-extraction-raw-database'
+      ),
+      'raw_extraction',
     )
 
   def AddProcessor(self, processor: IDocumentProcessor, processName: str):
