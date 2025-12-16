@@ -44,12 +44,12 @@ class SchemaPipeline:
       ),
       'frequency_driven_schema_generation',
     )
-    # self.AddGenerator(
-    #   KMeansSchemaGenerator(
-    #     self.minio, self.serverResponse, 'kmeans', self.llm
-    #   ),
-    #   'clustering_schema_generation',
-    # )
+    self.AddGenerator(
+      KMeansSchemaGenerator(
+        self.minio, self.serverResponse, 'kmeans', self.llm
+      ),
+      'clustering_schema_generation',
+    )
 
   def AddGenerator(self, generator: ISchemaGenerator, processName: str) -> None:
     self.schemaGenerators.append(generator)
