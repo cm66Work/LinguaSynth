@@ -21,7 +21,7 @@ class EmbeddingVectorSchemaGenerator:
     currentSchema: CollectionSchema,
     keywords: list[str],
     confidenceThreshold: float = 0.01,
-  ) -> CollectionSchema:
+  ) -> CollectionSchema:  # type: ignore
     pass
 
   async def ReprocessSchema__Old(
@@ -55,7 +55,7 @@ class EmbeddingVectorSchemaGenerator:
       cand_name = candidate_fields[i]
 
       if len(existing_embeds) > 0:
-        sims = CosignSimilarity.MultiVector([cand_embed], existing_embeds)[0]
+        sims = CosignSimilarity.MultiVector([cand_embed], existing_embeds)[0]  # type: ignore
         max_sim = float(np.max(sims))
       else:
         max_sim = 0.0
@@ -93,7 +93,7 @@ class EmbeddingVectorSchemaGenerator:
   ) -> list[RegularCollectionFieldSchema | ReferenceCollectionFieldSchema]:
     names = [f['name'] for f in fields]
     embeddings = await self.llmObject.GetEmbeddingsForContent(names)
-    sim_matrix = CosignSimilarity.MultiVector(embeddings, embeddings)
+    sim_matrix = CosignSimilarity.MultiVector(embeddings, embeddings)  # type: ignore
 
     keep = []
     removed = set()
@@ -101,7 +101,7 @@ class EmbeddingVectorSchemaGenerator:
       if name in removed:
         continue
       for j in range(i + 1, len(names)):
-        if sim_matrix[i][j] > threshold:
+        if sim_matrix[i][j] > threshold:  # type: ignore
           removed.add(names[j])
       keep.append(fields[i])
     return [f for f in keep if f['name'] not in removed]
