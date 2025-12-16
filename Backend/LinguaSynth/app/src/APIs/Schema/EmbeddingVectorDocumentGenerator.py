@@ -1,34 +1,14 @@
-import os
 from typing import Dict, List
-from Managers.LLMManager import LLMManager, LLMServerResponseObject
 from Utils import CosignSimilarity
+from ObjectInterfaces.LLM_Object import LLM_Object
+
 import numpy as np
 
-# from jsonschema import validate, ValidationError
 
-# --- Constants ---
-LLM_LIGHT_GENERATION_MODEL = 'gemma3:1b'
-LLM_HEAVY_GENERATION_MODEL = 'gemma3:12b'
-LLM_EMBEDDING_MODEL = 'embeddinggemma:300m'
-SCHEMA_FIELDS_FORMAT = {
-  'fields': {
-    'company_name': {'type': 'string'},
-    'year_created': {'type': 'integer'},
-  }
-}
-LLM_SCHEMA_FILE_NAME = 'schema.txt'
-
-
-class LLM_Object:
-  def __init__(self):
-    address = os.getenv('OLLAMA_ADDRESS', 'ollama')
-    port = os.getenv('OLLAMA_PORT', '11434')
-    self.client = LLMManager(hostAddress=f'{address}:{port}')
-
-  # # --- Handlers ---class EmbeddingVectorDocumentGenerator:
-  # def __init__(self, llmObject: LLM_Object, typesenseObject):
-  #   self.llmObject = llmObject
-  #   self.typesenseObject = typesenseObject
+class EmbeddingVectorDocumentGenerator:
+  def __init__(self, llmObject: LLM_Object, typesenseObject):
+    self.llmObject = llmObject
+    self.typesenseObject = typesenseObject
 
   async def GetEmbeddingsForContent(
     self, texts: List[str]
@@ -36,7 +16,9 @@ class LLM_Object:
     """
     Uses Ollama embeddinggemma:300m via llmObject client to get embeddings.
     """
-    return await self.client.GetEmbeddings(texts, 'embeddinggemma:300m')
+    return await self.llmObject.client.GetEmbeddings(
+      texts, 'embeddinggemma:300m'
+    )
 
   async def GenerateWeightedVectorEmbeddings(
     self, values: List[str], biases: List[str]
@@ -89,8 +71,3 @@ class LLM_Object:
   def _normalize_vector(self, vec: np.ndarray) -> np.ndarray:
     norm = np.linalg.norm(vec)
     return vec / norm if norm > 0 else vec
-
-  async def Generate(self, prompt: str, format={}) -> LLMServerResponseObject:
-    return await self.client.Generate(
-      model=LLM_LIGHT_GENERATION_MODEL, prompt=prompt, format=format
-    )
