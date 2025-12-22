@@ -331,6 +331,28 @@ async def GenerateDocumentsForCollection(
 # endregion
 
 
+# region Collection document Ingestion
+@app.post('/document-ingestion')
+async def DocumentIngestion(targetDataBucket: str, collectionName: str):
+  """
+  Converts documents in the target data bucket to match the collection schema name.
+  Outputs the converted documents to their own bucket whose name is the name of the target data bucket + '-documents'
+  E.G. targetDataBucket = 'token-extraction' will result in the generation of a new bucket called 'token-extraction-documents'
+  """
+
+  async def EventStream():
+    async for response in CollectionDocumentGenerator.RunGenerators(
+      targetDataBucket, collectionName
+    ):
+      response = json.dumps(asdict(response)) + '\n'
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+# endregion
+
+
 @app.post('/delete-all-schemas/')
 async def DeleteAllSchemas():
   for schema in typesenseObject.GetAllSchemas():

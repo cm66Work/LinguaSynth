@@ -62,17 +62,17 @@ class CollectionDocumentGenerationPipeline:
       ),
       'rule-based-document-generation',
     )
-    # self.AddIngestionProcessor(
-    #   EmbeddingCollectionDocumentGenerator(
-    #     self.minio,
-    #     self.llm,
-    #     self.serverResponse,
-    #     self.targetBucket,
-    #     self.collectionName,
-    #     'embedding-based-document-generation',
-    #   ),
-    #   'embedding-based-document-generation',
-    # )
+    self.AddIngestionProcessor(
+      EmbeddingCollectionDocumentGenerator(
+        self.minio,
+        self.llm,
+        self.serverResponse,
+        self.targetBucket,
+        self.collectionName,
+        'embedding-based-document-generation',
+      ),
+      'embedding-based-document-generation',
+    )
 
   def AddIngestionProcessor(
     self, ingestor: ICollectionDocumentGenerator, ingestorName: str
