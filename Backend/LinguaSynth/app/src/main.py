@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass
 import json
 from typing import Any, cast
+import APIs.ProcessingPipeline.DocumentIngestionPipeline
 import APIs.UserQuery
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
@@ -11,12 +12,15 @@ from Utils.ServerResponse import ServerResponse, ServerResponseV2
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.Schema.Schema
-import APIs.UploadSchema
 import APIs.CollectionDocumentGenerator
 import APIs.Iterate
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typesense.types.collection import CollectionSchema
+
+import APIs.ProcessingPipeline
+
+import APIs.ProcessingPipeline.DocumentIngestors
 
 
 # --- Objects ---
@@ -40,6 +44,11 @@ SchemaGenerator = APIs.Schema.Schema.Schema(
 CollectionDocumentGenerator = (
   APIs.CollectionDocumentGenerator.CollectionDocumentGenerator(
     minioObject, llmObject, typesenseObject, serverResponseV2
+  )
+)
+DocumentIngestionPipeline = (
+  APIs.ProcessingPipeline.DocumentIngestionPipeline.DocumentIngestionPipeline(
+    minioObject, typesenseObject, serverResponseV2
   )
 )
 
@@ -341,7 +350,7 @@ async def DocumentIngestion(targetDataBucket: str, collectionName: str):
   """
 
   async def EventStream():
-    async for response in CollectionDocumentGenerator.RunGenerators(
+    async for response in DocumentIngestionPipeline.Run(
       targetDataBucket, collectionName
     ):
       response = json.dumps(asdict(response)) + '\n'

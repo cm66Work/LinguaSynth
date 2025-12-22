@@ -19,12 +19,12 @@ from Utils.ServerResponse import (
 
 @dataclass
 class DocumentIngestionPipelineResponseObject(ServerResponseObject):
-  TotalTimeToComplete: float = 0
-  AverageTimeToProcessEachDocument: float = 0.0
-  DocumentsProcessed: int = 0
-  NumberOfDocumentsToProcess: int = 0
-  CollectionName: str = ''
-  IngestedResponseObjects: list[Any] = field(default_factory=list[Any])
+  TotalRunTime: float = 0
+  TotalTimeDividedByDocuments: float = 0.0
+  NumberOfProcessedDocuments: int = 0
+  TotalNumberOfProcessedDocuments: int = 0
+  CollectionBeingIngestedInto: str = ''
+  ResponseObjects: list[Any] = field(default_factory=list[Any])
 
 
 class DocumentIngestionPipeline:
@@ -49,15 +49,15 @@ class DocumentIngestionPipeline:
     currentResponse: DocumentIngestionPipelineResponseObject = (
       DocumentIngestionPipelineResponseObject()
     )
-    currentResponse.NumberOfDocumentsToProcess = (
+    currentResponse.TotalNumberOfProcessedDocuments = (
       self.minio.GetNumberOfObjectsInBucket(documentCollectionBucket)
     )
     currentResponse.Message = 'Indexing'
     startTime = time.time() * 1000
-    currentResponse.CollectionName = schemaName
+    currentResponse.CollectionBeingIngestedInto = schemaName
     yield self.serverResponse.GenerateServerResponse(currentResponse)
     for document in self.minio.GetObjectsInBucket(documentCollectionBucket):
-      currentResponse.DocumentsProcessed += 1
+      currentResponse.NumberOfProcessedDocuments += 1
       if document.object_name is None:
         continue
       for i in range(0, len(self.ingestionProcessors)):
@@ -66,7 +66,7 @@ class DocumentIngestionPipeline:
           cast(
             dict[str, str],
             (
-              await self.minio.GetContentOfBucketObject(
+              self.minio.GetContentOfBucketObject(
                 documentCollectionBucket, document.object_name
               ).Data['content']
             ),
@@ -78,15 +78,15 @@ class DocumentIngestionPipeline:
           result[2] if result[1] else StatisticObject('error', -1)
         )
 
-    print(self.pipelineResponseObjects)
-    currentResponse.TotalTimeToComplete = (time.time() * 1000) - startTime
-    currentResponse.AverageTimeToProcessEachDocument = (
-      currentResponse.TotalTimeToComplete
-      / currentResponse.NumberOfDocumentsToProcess
+    currentResponse.TotalRunTime = (time.time() * 1000) - startTime
+    currentResponse.TotalTimeDividedByDocuments = (
+      currentResponse.TotalRunTime
+      / currentResponse.TotalNumberOfProcessedDocuments
     )
     currentResponse.Message = 'Finished!'
     currentResponse.Finished = True
     currentResponse.Success = True
+    currentResponse.ResponseObjects = self.pipelineResponseObjects
     yield self.serverResponse.GenerateServerResponse(currentResponse)
 
   def __InitDocumentIngestors(self):

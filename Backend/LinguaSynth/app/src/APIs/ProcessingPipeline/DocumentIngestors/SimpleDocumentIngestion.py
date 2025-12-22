@@ -1,3 +1,5 @@
+import ast
+import json
 import time
 from typing import override
 from APIs.ProcessingPipeline.DocumentIngestors.IDocumentIngestor import (
@@ -25,7 +27,7 @@ class SimpleDocumentIngestion(IDocumentIngestor):
     await super().IndexDocument(documentName, document, collectionName)
 
     result = self.typesense.IndexFileIntoCollection(
-      str(document), collectionName
+      json.dumps(ast.literal_eval(str(document))), collectionName
     )
 
     self.statisticsObject.ProcessingTime = (time.time() * 1000) - self.startTime
