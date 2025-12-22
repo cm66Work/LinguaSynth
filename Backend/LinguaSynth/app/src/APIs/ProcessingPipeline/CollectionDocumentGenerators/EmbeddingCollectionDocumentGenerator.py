@@ -36,7 +36,7 @@ class EmbeddingCollectionDocumentGenerator(ICollectionDocumentGenerator):
   ) -> tuple[str, bool, StatisticsObject]:
     await super().GenerateCollectionDocument(content, fileName, documentSchema)
     mapped = await self.__MapPhrasesToFields(documentSchema, content)
-
+    mapped['id'] = fileName
     # Upload the mapped document to its bucket so we dont have to map it again.
     uploadResult = await self.fileUploader.UploadDocumentContentAsFile(
       str(mapped), fileName

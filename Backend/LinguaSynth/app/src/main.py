@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass
 import json
 from typing import Any, cast
+import APIs.ProcessingPipeline.DocumentIngestionPipeline
 import APIs.UserQuery
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
@@ -11,12 +12,15 @@ from Utils.ServerResponse import ServerResponse, ServerResponseV2
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.Schema.Schema
-import APIs.UploadSchema
 import APIs.CollectionDocumentGenerator
 import APIs.Iterate
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typesense.types.collection import CollectionSchema
+
+import APIs.ProcessingPipeline
+
+import APIs.ProcessingPipeline.DocumentIngestors
 
 
 # --- Objects ---
@@ -40,6 +44,11 @@ SchemaGenerator = APIs.Schema.Schema.Schema(
 CollectionDocumentGenerator = (
   APIs.CollectionDocumentGenerator.CollectionDocumentGenerator(
     minioObject, llmObject, typesenseObject, serverResponseV2
+  )
+)
+DocumentIngestionPipeline = (
+  APIs.ProcessingPipeline.DocumentIngestionPipeline.DocumentIngestionPipeline(
+    minioObject, typesenseObject, serverResponseV2
   )
 )
 
@@ -320,6 +329,73 @@ async def GenerateDocumentsForCollection(
 
   async def EventStream():
     async for response in CollectionDocumentGenerator.RunGenerators(
+      targetDataBucket, collectionName
+    ):
+      response = json.dumps(asdict(response)) + '\n'
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')
+
+
+# endregion
+
+
+# region Collection document Ingestion
+class CollectionDocumentIngestionResponseModel(DefaultResponseModel):
+  TotalRunTime: float = Field(
+    123.123,
+    description='The total time taken for the internal conversion pipeline to complete in ms.',
+  )
+  TotalTimeDividedByDocuments: float = Field(
+    123.123,
+    description='The Calculated time taken for the entire pipeline to process each document. Note that this time should be different to the time per document. This number helps identify the performance of the overall pipeline in ms. Whilst the individual documents processing time shows how different documents sizes impact just the document conversion.',
+  )
+  DocumentsProcessed: int = Field(
+    1,
+    description='The current number of documents that have already been processed by the pipeline. Note that this number can be 0 if no documents need to be converted.',
+  )
+  TotalNumberOfDocuments: int = Field(
+    1,
+    description='The total number of remaining documents to be processed by the pipeline. Note that this number can be 0 if no documents are needed for conversion.',
+  )
+  CollectionName: str = Field(
+    'CollectionSchema',
+    description='The typesense schema to use when converting the text documents into typesense document collection objects.',
+  )
+  ResponseObjects: list[ResponseObject] = Field(
+    description='Internal data and statistics collected during the pipelines run process.'
+  )
+
+
+@app.post(
+  path='/document-ingestion',
+  response_class=StreamingResponse,
+  responses={
+    200: {
+      'description': 'Event stream of ServerResponseObject progress containing information related to the current progress of the system as it indexed documents into the target collection and all processing statistics that where collected during the conversion process',
+      'content': {
+        'text/event-stream': {
+          'schema': CollectionDocumentIngestionResponseModel.model_json_schema()
+        }
+      },
+    },
+    500: {
+      'description': 'Internal server failure occurred during processing.',
+      'content': {
+        'text/event-stream': {
+          'schema': DefaultResponseModel.model_json_schema()
+        }
+      },
+    },
+  },
+)
+async def DocumentIngestion(targetDataBucket: str, collectionName: str):
+  """
+  Indexes all documents from the targetDataBucket into the given collectionName
+  """
+
+  async def EventStream():
+    async for response in DocumentIngestionPipeline.Run(
       targetDataBucket, collectionName
     ):
       response = json.dumps(asdict(response)) + '\n'
