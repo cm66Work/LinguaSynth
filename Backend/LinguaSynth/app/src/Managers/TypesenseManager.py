@@ -1,5 +1,5 @@
 import json
-from typing import cast
+from typing import List, cast
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
 import requests
@@ -266,7 +266,7 @@ class TypesenseManager:
       )
 
   # region Tools
-  def GetLoadedSchemas(self):
+  def GetLoadedSchemas(self) -> List[CollectionSchema]:
     # ignoring the pylance error, the type is correct.
     return self.client.collections.retrieve()  # type: ignore
 

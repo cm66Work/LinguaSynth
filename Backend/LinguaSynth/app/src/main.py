@@ -2,6 +2,7 @@ from dataclasses import asdict, dataclass
 import json
 from typing import Any, cast
 import APIs.ProcessingPipeline.DocumentIngestionPipeline
+import APIs.ProcessingPipeline.QuestionAnsweringPipeline
 import APIs.UserQuery
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
@@ -19,8 +20,6 @@ from pydantic import BaseModel, Field
 from typesense.types.collection import CollectionSchema
 
 import APIs.ProcessingPipeline
-
-import APIs.ProcessingPipeline.DocumentIngestors
 
 
 # --- Objects ---
@@ -51,6 +50,11 @@ DocumentIngestionPipeline = (
     minioObject, typesenseObject, serverResponseV2
   )
 )
+QuestionAnsweringPipeline = (
+  APIs.ProcessingPipeline.QuestionAnsweringPipeline.QuestionAnsweringPipeline(
+    minioObject, typesenseObject, llmObject, serverResponseV2
+  )
+)
 
 
 # --- General ---
@@ -79,12 +83,11 @@ async def UserQuestion(question: str):
           Data ({'answer': generated response as string, 'reference_documents: names of all documents used for answer generation as list[str]})
       }
   """
+  schemas: list[CollectionSchema] = await GetAllSchemas()
 
   async def EventStream():
-    async for response in APIs.UserQuery.UserQuery(
-      serverResponse, llmObject, typesenseObject, question, minioObject
-    ):
-      response = json.dumps(vars(response)) + '\n'
+    async for response in QuestionAnsweringPipeline.Run(question, schemas):
+      response = json.dumps(asdict(response)) + '\n'
       yield response
 
   return StreamingResponse(EventStream(), media_type='application/json')
@@ -186,9 +189,18 @@ async def UploadSchema(schemaBucket: str, schemaFileName: str) -> bool:
     ],
   )
   response = typesenseObject.client.client.collections.create(schema)
+  # response = typesenseObject.client.RecreateCollection(schema, True)
 
-  print(response)
-  return response is not None
+  # print(schema, '\n')
+
+  # if not response.Success:
+  #   raise HTTPException(status_code=500, detail=response.Message)
+  # else:
+  #   raise HTTPException(status_code=200, detail=response.Message)
+  if not response:
+    raise HTTPException(status_code=500)
+  else:
+    raise HTTPException(status_code=200)
 
 
 class DefaultResponseSuccessModel(BaseModel):
@@ -413,9 +425,11 @@ async def DeleteAllSchemas():
     typesenseObject.DeleteSchema(schema['name'])
 
 
-@app.post('/get-all-schemas')
-async def GetAllSchemas():
-  return typesenseObject.GetAllSchemas()
+@app.post('/get-all-schemas/')
+async def GetAllSchemas() -> list[CollectionSchema]:
+  schemas = typesenseObject.GetAllSchemas()
+  print(f'\n Loaded schemas: {schemas}')
+  return schemas
 
 
 @app.post('/iterate/')
