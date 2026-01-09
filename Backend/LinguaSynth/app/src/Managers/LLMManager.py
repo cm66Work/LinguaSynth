@@ -1,5 +1,6 @@
+import numpy as np
 from dataclasses import dataclass
-from typing import List, cast
+from typing import List, Sequence, cast
 from ollama import Client, ResponseError
 from Utils.LogUtils import ErrorTypes
 from Utils.ServerResponse import ServerResponse, ServerResponseObject
@@ -133,9 +134,7 @@ class LLMManager:
       return True
     return False
 
-  async def GetEmbeddings(
-    self, texts: List[str], model: str
-  ) -> List[List[float]]:
+  async def GetEmbeddings(self, texts: List[str], model: str) -> List[float]:
     """
     Get embeddings for a list of texts using your existing Ollama client class.
 
@@ -150,7 +149,6 @@ class LLMManager:
     if not self.__ModelExists(model):
       await self.PullModel(imageName=model)
     embeddings = []
-
     for text in texts:
       try:
         response = self.client.embed(model=model, input=text)
@@ -160,5 +158,11 @@ class LLMManager:
       except Exception as e:
         print(f'[Warning] Embedding failed for text: {text[:50]}... ({e})')
         embeddings.append([])  # Empty vector fallback
+    # (B, 1, 768)
+    # Convert it into (B, 768)
+    flatEmbedding: list[float] = []
+    for emb in embeddings:
+      if len(emb) > 0:
+        flatEmbedding.append(emb[0])
 
-    return embeddings
+    return flatEmbedding

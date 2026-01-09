@@ -30,9 +30,7 @@ class LLM_Object:
   #   self.llmObject = llmObject
   #   self.typesenseObject = typesenseObject
 
-  async def GetEmbeddingsForContent(
-    self, texts: List[str]
-  ) -> List[List[float]]:
+  async def GetEmbeddingsForContent(self, texts: List[str]) -> List[float]:
     """
     Uses Ollama embeddinggemma:300m via llmObject client to get embeddings.
     """
