@@ -1,7 +1,9 @@
+import time
 from typing import Any, AsyncGenerator
 from APIs.ProcessingPipeline.FileProcessingPipeline import (
   FileProcessingPipelines,
   FilePipelineResponseObject,
+  DocumentResponseObject,
 )
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.LogUtils import ErrorTypes
@@ -19,12 +21,13 @@ class DocumentProcessor:
   # region Document summarization and processing
   # Process all original documents to summarized formats.
   # is later used to indexing into Typesense.
-  async def ProcessDocumentsInBucket(
+  async def NormalizeUploadedDocuments(
     self,
     bucketName: str,
   ) -> AsyncGenerator[ServerResponseObject, Any]:
     currentResponse = FilePipelineResponseObject()
     currentResponse.Message = 'Processing....'
+    startTime = time.time() * 1000
 
     fileProcessingPipeline: FileProcessingPipelines = FileProcessingPipelines(
       self.minio, self.serverResponse
@@ -42,9 +45,10 @@ class DocumentProcessor:
 
     # All the documents which where successfully processed so we can remove them after all processors are done with them.
     processedDocuments: list[str] = []
+    lastProcessesResponseObject: list[DocumentResponseObject] = []
     # send off the number of documents in the bucket.
-    currentResponse.NumberOfDocumentsProcessed = (
-      self.minio.GetNumberOfObjectsInBucket(bucketName)
+    currentResponse.TotalDocuments = self.minio.GetNumberOfObjectsInBucket(
+      bucketName
     )
     yield self.serverResponse.GenerateServerResponse(currentResponse)
 
@@ -52,9 +56,13 @@ class DocumentProcessor:
       self.minio, self.serverResponse, 'processed-database'
     )
     for document in self.minio.GetObjectsInBucket(bucketName):
-      currentResponse.TotalDocumentsProcessed += 1
       if document.object_name is None:
+        currentResponse.DocumentsProcessed += 1
         continue
+
+      currentResponse.Message = f'{document.object_name}: Processing...'
+      yield self.serverResponse.GenerateServerResponse(currentResponse)
+
       content = self.minio.GetContentOfBucketObject(
         bucketName, document.object_name
       ).Data['content']
@@ -66,8 +74,12 @@ class DocumentProcessor:
           content, document.object_name
         )
         # )
-        currentResponse.ProcessResponseObjects = result[0]
+        lastProcessesResponseObject = result[0]
         processedDocuments.append(document.object_name)
+
+      currentResponse.Message = f'{document.object_name}: Done!'
+      currentResponse.DocumentsProcessed += 1
+      currentResponse.TotalTimeToComplete = (time.time() * 1000) - startTime
       yield self.serverResponse.GenerateServerResponse(currentResponse)
 
     # Remove the processed documents from the bucket so we know that we dont have to process them again later.
@@ -76,5 +88,5 @@ class DocumentProcessor:
     currentResponse.Success = True
     currentResponse.Finished = True
     currentResponse.Message = 'Finished'
+    currentResponse.ProcessResponseObjects = lastProcessesResponseObject
     yield self.serverResponse.GenerateServerResponse(currentResponse)
-    return

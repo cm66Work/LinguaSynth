@@ -8,12 +8,10 @@ from Utils.ServerResponse import ServerResponseV2
 
 @dataclass
 class StatisticsObject:
-  DocumentName: str
-  StartTime: float
-  EndTime: float
-  ProcessingTime: float
-  FileSizeBefore: float
-  FileSizeAfter: float
+  DocumentName: str = 'NoName'
+  ProcessingTime: float = -1
+  FileSizeBefore: float = -1
+  FileSizeAfter: float = -1
 
 
 @dataclass
@@ -41,6 +39,6 @@ class IDocumentProcessor:
   ) -> tuple[str, bool, StatisticsObject]:
     self.fileName = fileName
     self.statisticsObject: StatisticsObject = StatisticsObject(
-      fileName, time.time() * 1000, -1, -1, getsizeof(content), -1
+      fileName, FileSizeBefore=getsizeof(content)
     )
-    return 'placeholder', False, StatisticsObject('', 0, 0, 0, 0, 0)
+    return 'placeholder', False, self.statisticsObject

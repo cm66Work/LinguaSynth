@@ -1,24 +1,23 @@
 from dataclasses import asdict, dataclass
-import json
 from typing import Any, cast
-import APIs.ProcessingPipeline.DocumentIngestionPipeline
-import APIs.ProcessingPipeline.QuestionAnsweringPipeline
-import APIs.UserQuery
 from ObjectInterfaces.Typesense_Object import Typesense_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.PostgresObject import Postgres_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from fastapi import FastAPI, HTTPException, UploadFile
 from Utils.ServerResponse import ServerResponse, ServerResponseV2
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from typesense.types.collection import CollectionSchema
 import APIs.UploadNewDocument
 import APIs.ProcessNewDocuments
 import APIs.Schema.Schema
 import APIs.CollectionDocumentGenerator
 import APIs.Iterate
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from typesense.types.collection import CollectionSchema
-
+import APIs.ProcessingPipeline.DocumentIngestionPipeline
+import APIs.ProcessingPipeline.QuestionAnsweringPipeline
+import APIs.UserQuery
+import json
 import APIs.ProcessingPipeline
 
 
@@ -55,6 +54,14 @@ QuestionAnsweringPipeline = (
     minioObject, typesenseObject, llmObject, serverResponseV2
   )
 )
+
+# --- Globals ---
+CHUNK_SIZE = 32 * 1024
+
+
+def __IterBytesInChunks(data: bytes, chunkSize: int = CHUNK_SIZE):
+  for i in range(0, len(data), chunkSize):
+    yield data[i : i + chunkSize]
 
 
 # --- General ---
@@ -114,8 +121,8 @@ async def UploadNewDocument(file: UploadFile):
     raise HTTPException(status_code=200, detail=result.Message)
 
 
-@app.post('/process-new-uploaded-documents/')
-async def ProcessNewDocuments():
+@app.post('/normalize-uploaded-documents/')
+async def NormalizeUploadedDocuments():
   """
   API call for processing un-processed documents into the format the internal system can use.
 
@@ -134,15 +141,26 @@ async def ProcessNewDocuments():
   """
 
   async def EventStream():
-    async for response in DocumentProcessor.ProcessDocumentsInBucket(
+    async for response in DocumentProcessor.NormalizeUploadedDocuments(
       'raw-database',
     ):
       # print(response, '\n\n')
       # response = json.dumps(vars(response)) + '\n'
-      response = json.dumps(asdict(response)) + '\n'
-      yield response
+      yield json.dumps(asdict(response)) + '\n'
+      # line = (
+      #   json.dumps(asdict(response), ensure_ascii=False).encode('utf-8') + b'\n'
+      # )
 
-  return StreamingResponse(EventStream(), media_type='application/json')
+      # for chunk in __IterBytesInChunks(line, CHUNK_SIZE):
+      #   # print(chunk, '\n')
+      #   yield chunk
+      #   await asyncio.sleep(0.1)
+
+  return StreamingResponse(
+    EventStream(),
+    media_type='application/x-ndjson; charset=utf-8',
+    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'},
+  )
 
 
 @app.post('/generate-schema/')

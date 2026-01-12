@@ -19,9 +19,8 @@ from Utils.ServerResponse import ServerResponseV2, ServerResponseObject
 @dataclass
 class FilePipelineResponseObject(ServerResponseObject):
   TotalTimeToComplete: float = 0
-  AverageTimeToProcessEachDocument: float = 0.0
-  TotalDocumentsProcessed: int = 0
-  NumberOfDocumentsProcessed: int = 0
+  DocumentsProcessed: int = 0
+  TotalDocuments: int = 0
   ProcessResponseObjects: list[DocumentResponseObject] = field(
     default_factory=list[DocumentResponseObject]
   )
@@ -80,13 +79,13 @@ class FileProcessingPipelines:
     self, content: str, fileName: str
   ) -> tuple[list[DocumentResponseObject], bool]:
     for i in range(0, len(self.documentProcessors)):
+      # print(f'{fileName}: Processing...')
       response = await self.documentProcessors[i].ProcessDocument(
         content, fileName
       )
       # add this processes statistics to the list for data logging.
       self.pipelineResponseObject[i].Statistics.append(
-        response[2]
-        if response[1]
-        else StatisticsObject(fileName, -1, -1, -1, -1, -1)
+        response[2] if response[1] else StatisticsObject(fileName, -1, -1, -1)
       )
+      # print(f'{fileName}: Done')
     return self.pipelineResponseObject, True

@@ -18,9 +18,9 @@ from Utils.ServerResponse import ServerResponseV2, ServerResponseObject
 @dataclass
 class SchemaPipelineResponseObject(ServerResponseObject):
   TotalTimeToComplete: float = 0
-  AverageTimeToProcessEachDocument: float = 0.0
-  TotalDocumentsProcessed: int = 0
-  NumberOfDocumentsProcessed: int = 0
+  TotalDocuments: int = 0
+  ExtractedKeywords: int = 0
+  DocumentsProcessed: int = 0
   ProcessResponseObjects: list[GeneratorResponseObject] = field(
     default_factory=list[GeneratorResponseObject]
   )
@@ -38,12 +38,12 @@ class SchemaPipeline:
     self.__InitGenerators()
 
   def __InitGenerators(self) -> None:
-    self.AddGenerator(
-      FrequencyDrivenSchemaGenerator(
-        self.minio, self.serverResponse, 'frequency'
-      ),
-      'frequency_driven_schema_generation',
-    )
+    # self.AddGenerator(
+    #   FrequencyDrivenSchemaGenerator(
+    #     self.minio, self.serverResponse, 'frequency'
+    #   ),
+    #   'frequency_driven_schema_generation',
+    # )
     self.AddGenerator(
       KMeansSchemaGenerator(
         self.minio, self.serverResponse, 'kmeans', self.llm
@@ -65,9 +65,7 @@ class SchemaPipeline:
         keywords, targetBucketName
       )
       self.pipelineResponseObjects[i].Statistics.append(
-        response[2]
-        if response[1]
-        else StatisticsObject('error', 'error', [], 0, -1, -1, -1)
+        response[2] if response[1] else StatisticsObject('error', [], -1)
       )
 
     return self.pipelineResponseObjects, True

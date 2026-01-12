@@ -25,11 +25,9 @@ class RawTextExtraction(IDocumentProcessor):
     self, content: str, fileName: str
   ) -> tuple[str, bool, StatisticsObject]:
     await super().ProcessDocument(content, fileName)
+    startTime: float = time.time() * 1000
     # calculate the statistics for the process.
-    self.statisticsObject.EndTime = time.time() * 1000
-    self.statisticsObject.ProcessingTime = (
-      self.statisticsObject.EndTime - self.statisticsObject.StartTime
-    )
+    self.statisticsObject.ProcessingTime = (time.time() * 1000) - startTime
     self.statisticsObject.FileSizeAfter = getsizeof(content)
 
     # Upload the processed file to Minio

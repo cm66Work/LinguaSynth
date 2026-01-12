@@ -28,6 +28,7 @@ class TokenizationExtraction(IDocumentProcessor):
     self, content: str, fileName: str
   ) -> tuple[str, bool, StatisticsObject]:
     await super().ProcessDocument(content, fileName)
+    startTime: float = time.time() * 1000
 
     tokens = word_tokenize(content)
     tokens = tokens[1:-1]
@@ -35,10 +36,7 @@ class TokenizationExtraction(IDocumentProcessor):
     tokens = ', '.join(tokens)
 
     # calculate the statistics for the process.
-    self.statisticsObject.EndTime = time.time() * 1000
-    self.statisticsObject.ProcessingTime = (
-      self.statisticsObject.EndTime - self.statisticsObject.StartTime
-    )
+    self.statisticsObject.ProcessingTime = (time.time() * 1000) - startTime
     self.statisticsObject.FileSizeAfter = getsizeof(tokens)
 
     # Upload the processed file to Minio

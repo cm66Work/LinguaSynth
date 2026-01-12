@@ -30,22 +30,22 @@ class RAKEExtraction(IDocumentProcessor):
     self, content: str, fileName: str
   ) -> tuple[str, bool, StatisticsObject]:
     await super().ProcessDocument(content, fileName)
+    startTime: float = time.time() * 1000
 
     # run the RAKE
     extractedKeywords = str(self.RAKE(content))[1:-1].replace("'", '')
-    # calculate the statistics for the process.
-    self.statisticsObject.EndTime = time.time() * 1000
-    self.statisticsObject.ProcessingTime = (
-      self.statisticsObject.EndTime - self.statisticsObject.StartTime
-    )
-    self.statisticsObject.FileSizeAfter = getsizeof(extractedKeywords)
+    if len(extractedKeywords) > 0:
+      # calculate the statistics for the process.
+      self.statisticsObject.ProcessingTime = (time.time() * 1000) - startTime
+      self.statisticsObject.FileSizeAfter = getsizeof(extractedKeywords)
 
-    # Upload the processed file to Minio
-    uploadResult = await self.fileUploader.UploadDocumentContentAsFile(
-      extractedKeywords, fileName
-    )
+      # Upload the processed file to Minio
+      uploadResult = await self.fileUploader.UploadDocumentContentAsFile(
+        extractedKeywords, fileName
+      )
 
-    return uploadResult.Message, uploadResult.Success, self.statisticsObject
+      return uploadResult.Message, uploadResult.Success, self.statisticsObject
+    return f'Error:Failed to parse: {fileName}', False, self.statisticsObject
 
   def RAKE(self, content: str):
     rake = Rake()

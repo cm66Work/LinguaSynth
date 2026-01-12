@@ -32,3 +32,4 @@ Backend/LinguaSynth/app/src/LinguaSynth.egg-info/requires.txt
 
 Backend/LinguaSynth/app/temp
 Backend/LinguaSynth/app/src/Output.json
+Frontend/Testing/*

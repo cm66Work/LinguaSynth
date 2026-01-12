@@ -14,7 +14,6 @@ from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from Utils.ServerResponse import ServerResponseV2, ServerResponseObject
 from Utils.LogUtils import ErrorTypes
-from Utils import JsonUtils
 
 
 class Schema:
@@ -29,7 +28,11 @@ class Schema:
     self, targetBucketName: str
   ) -> AsyncGenerator[ServerResponseObject, Any]:
     currentResponse = SchemaPipelineResponseObject()
-    currentResponse.Message = 'Processing....'
+    currentResponse.Message = (
+      f'Generating Schemas for bucket: {targetBucketName}....'
+    )
+    yield self.serverResponse.GenerateServerResponse(currentResponse)
+
     pipeline: SchemaPipeline = SchemaPipeline(
       self.minio, self.llm, self.serverResponse
     )
@@ -47,16 +50,18 @@ class Schema:
       )
       return
 
-    currentResponse.NumberOfDocumentsProcessed = (
-      self.minio.GetNumberOfObjectsInBucket(targetBucketName)
+    currentResponse.TotalDocuments = self.minio.GetNumberOfObjectsInBucket(
+      targetBucketName
     )
     yield self.serverResponse.GenerateServerResponse(currentResponse)
 
     allKeyWords: list[str] = []
+    currentResponse.Message = 'Collecting keywords from documents in bucket.'
+    yield self.serverResponse.GenerateServerResponse(currentResponse)
     for document in self.minio.GetObjectsInBucket(targetBucketName):
-      currentResponse.TotalDocumentsProcessed += 1
       if document.object_name is None:
         continue
+
       content = cast(
         str,
         self.minio.GetContentOfBucketObject(
@@ -65,6 +70,11 @@ class Schema:
       )
       content = [word.strip() for word in content.split(',')]
       allKeyWords.extend(content)
+
+    currentResponse.Message = (
+      f'Done. Collected: {len(allKeyWords)} keywords. Generating schemas now.'
+    )
+    yield self.serverResponse.GenerateServerResponse(currentResponse)
 
     pipelineResult = await pipeline.Run(allKeyWords, targetBucketName)
 
@@ -77,9 +87,4 @@ class Schema:
     currentResponse.TotalTimeToComplete = (
       time.time() * 1000
     ) - generationStartTime
-    currentResponse.AverageTimeToProcessEachDocument = (
-      currentResponse.TotalTimeToComplete
-      / currentResponse.NumberOfDocumentsProcessed
-    )
     yield self.serverResponse.GenerateServerResponse(currentResponse)
-    return
