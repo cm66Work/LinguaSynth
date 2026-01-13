@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
-from APIs.ProcessingPipeline.CollectionDocumentGenerators.EmbeddingCollectionDocumentGenerator import (
-  EmbeddingCollectionDocumentGenerator,
-)
-from APIs.ProcessingPipeline.CollectionDocumentGenerators.SimpleCollectionDocumentGenerator import (
-  SimpleCollectionDocumentGenerator,
+from APIs.ProcessingPipeline.CollectionDocumentGenerators import (
+  ANNClusteringDocumentGenerator as ScaNNGenerator,
+  ENNCosineSimilarityDocumentGenerator as ENNCosineSimilarityGenerator,
+  SimpleCollectionDocumentGenerator as SimpleGenerator,
+  EmbeddingCollectionDocumentGenerator as EmbeddingGenerator,
 )
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
@@ -52,7 +52,7 @@ class CollectionDocumentGenerationPipeline:
 
   def __InitIngestionMethods(self):
     self.AddIngestionProcessor(
-      SimpleCollectionDocumentGenerator(
+      SimpleGenerator.SimpleCollectionDocumentGenerator(
         self.minio,
         self.llm,
         self.serverResponse,
@@ -63,15 +63,26 @@ class CollectionDocumentGenerationPipeline:
       'rule-based-document-generation',
     )
     self.AddIngestionProcessor(
-      EmbeddingCollectionDocumentGenerator(
+      ENNCosineSimilarityGenerator.ENNCosineSimilarity(
         self.minio,
         self.llm,
         self.serverResponse,
         self.targetBucket,
         self.collectionName,
-        'embedding-based-document-generation',
+        'enn-cosine-similarity-based-document-generation',
       ),
-      'embedding-based-document-generation',
+      'enn-cosine-similarity-based-document-generation',
+    )
+    self.AddIngestionProcessor(
+      ScaNNGenerator.ANNClustering(
+        self.minio,
+        self.llm,
+        self.serverResponse,
+        self.targetBucket,
+        self.collectionName,
+        'scann-based-document-generation',
+      ),
+      'scann-based-document-generation',
     )
 
   def AddIngestionProcessor(
@@ -96,4 +107,5 @@ class CollectionDocumentGenerationPipeline:
       self.pipelineResponseObject[i].Statistics.append(
         response[2] if response[1] else StatisticsObject('error', -1)
       )
+
     return self.pipelineResponseObject, True

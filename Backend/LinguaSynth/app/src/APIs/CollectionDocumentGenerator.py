@@ -1,3 +1,4 @@
+from multiprocessing import process
 import time
 from dataclasses import dataclass
 import json
@@ -75,6 +76,10 @@ class CollectionDocumentGenerator:
 
     documentSchema = self.__ConvertToDocumentSchema(schema)
 
+    totalDocuments: int = self.minio.GetNumberOfObjectsInBucket(
+      targetDataBucket
+    )
+    processedDocuments: int = 0
     for document in self.minio.GetObjectsInBucket(targetDataBucket):
       currentResponse.DocumentsProcessed += 1
       if document.object_name is None:
@@ -90,6 +95,8 @@ class CollectionDocumentGenerator:
       )
       if result[1]:
         currentResponse.IngestedResponseObjects = result[0]
+      processedDocuments += 1
+      print(f'Processed: {processedDocuments}/{totalDocuments} documents.')
 
     currentResponse.Success = True
     currentResponse.Finished = True
@@ -101,7 +108,6 @@ class CollectionDocumentGenerator:
       currentResponse.TotalTimeToComplete / currentResponse.DocumentsProcessed
     )
     yield self.serverResponse.GenerateServerResponse(currentResponse)
-    return
 
   def __ConvertToDocumentSchema(
     self, schema: CollectionSchema

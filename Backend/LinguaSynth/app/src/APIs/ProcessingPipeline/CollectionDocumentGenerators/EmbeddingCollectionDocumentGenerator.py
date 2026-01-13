@@ -1,7 +1,8 @@
+from dataclasses import dataclass
+import math
 import re
 import time
-import numpy as np
-from typing import Optional, cast, override
+from typing import cast, override
 from APIs.ProcessingPipeline.CollectionDocumentGenerators.ICollectionDocumentGenerator import (
   ICollectionDocumentGenerator,
   StatisticsObject,
@@ -10,10 +11,31 @@ from ObjectInterfaces.LLM_Object import LLM_Object
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from Utils.ServerResponse import ServerResponseV2
 from typesense.types.document import DocumentSchema
-from Utils.CosignSimilarity import MultiVector
+
+Vector = list[float]
 
 
-class EmbeddingCollectionDocumentGenerator(ICollectionDocumentGenerator):
+@dataclass
+class DocumentTemplate:
+  fieldName: str
+  fieldPhrase: str = (
+    ''  # The current phrase that is the closest im similarity to the fieldName.
+  )
+  similarityScore: float = (
+    0.01  # The score of how close the field Phrase is to the field Name.
+  )
+  # This value is at 0.01 because we still want the possibility for the field phrase to be empty.
+
+
+class ENNCollectionDocumentGenerator(ICollectionDocumentGenerator):
+  """
+  Exact Nearest Neighbor between each document collection field name and the data inside the given document.
+
+  Running GenerateCollectionDocument will upload a Typesense document to a minio bucket for later ingestion into typesense.
+
+  This process does produce a lot of junk information inside the generated document. So it leans heavily on Typesense's ability to perform fuzzy searching and partial matching
+  """
+
   @override
   def __init__(
     self,
@@ -35,9 +57,11 @@ class EmbeddingCollectionDocumentGenerator(ICollectionDocumentGenerator):
     documentSchema: DocumentSchema,
   ) -> tuple[str, bool, StatisticsObject]:
     await super().GenerateCollectionDocument(content, fileName, documentSchema)
-    mapped = await self.__MapPhrasesToFields(documentSchema, content)
+
+    cleanContent = self.__CleanInputContent(content, fileName)
+    mapped = await self.__MapPhrasesToFields(documentSchema, cleanContent)
     mapped['id'] = fileName
-    # Upload the mapped document to its bucket so we dont have to map it again.
+
     uploadResult = await self.fileUploader.UploadDocumentContentAsFile(
       str(mapped), fileName
     )
@@ -45,16 +69,26 @@ class EmbeddingCollectionDocumentGenerator(ICollectionDocumentGenerator):
     self.statisticsObject.ProcessingTime = (time.time() * 1000) - self.startTime
     return uploadResult.Message, uploadResult.Success, self.statisticsObject
 
+  def __CleanInputContent(self, content: str, fileName: str) -> str:
+    """
+    Remove an exact line match of the fileName so it does not dominate matching.
+
+    :param self: Description
+    :param content: Description
+    :type content: str
+    :param fileName: Description
+    :type fileName: str
+    :return: Description
+    :rtype: str
+    """
+    lines = [line for line in content.splitlines() if line != fileName]
+    return ' '.join(lines).strip()
+
   async def __MapPhrasesToFields(
     self,
     documentSchema: DocumentSchema,
-    content: str,
-    topK: int = 3,
-    threshold: float = 0.35,
-    joinMultiple: bool = True,
-    separator: str = '|',
-    defaultValue: str = '',
-    fieldHints: Optional[dict[str, list[str]]] = None,
+    contentDocument: str,
+    sentenceSplit: int = 2,  # How many parts should a sentence be split into.
   ) -> dict[str, str]:
     """
     Embedding based mapping from phrases to document schema
@@ -63,59 +97,87 @@ class EmbeddingCollectionDocumentGenerator(ICollectionDocumentGenerator):
         documentSchema (DocumentSchema): The schema for the document
         fieldHints (dict[str, list[str]]): Hard coded mappings, eg. {quality:['qa', 'assurance']}
     """
-    phrases = self.__SplitPhrases(content)
-    if not phrases:
-      return {
-        k: defaultValue for k in documentSchema.keys()
-      }  # Nothing to index
+    # Not trying to over complicate things right now. We just want to find out which sentence best matches the field name. Typesense will do the searching, will return the file even if it is a partial match.
+    # splitSentences = self.__SplitSentences(contentDocument, sentenceSplit)
+    splitSentences = contentDocument
 
-    fieldNames = list(documentSchema.keys())
-    hints = fieldHints or {}
+    mergedWords: list[str] = []
+    mergedWords.extend(splitSentences)
+    mergedWords.extend(documentSchema.keys())
 
-    fieldText = []
-    for f in fieldNames:
-      extras = hints.get(f, [])
-      fieldText.append(self.__Normalize(''.join([f] + extras)))
+    mergeEmbeddings = await self.__GenerateKeywordEmbeddings(mergedWords)
 
-    phrasesNormalized: list[str] = []
-    for phrase in [self.__Normalize(p) for p in phrases]:
-      if len(phrase) > 0:
-        phrasesNormalized.append(phrase)
+    fieldNameEmbeddings: dict[str, Vector] = {}
+    contentEmbeddings: dict[str, Vector] = {}
 
-    phrasesEmbed = await self.llm.GetEmbeddingsForContent(phrasesNormalized)
-    phrasesEmbed = cast(np.ndarray, phrasesEmbed)
-    fieldEmbed = await self.llm.GetEmbeddingsForContent(fieldText)
-    fieldEmbed = cast(np.ndarray, fieldEmbed)
+    schemaKeys = set(documentSchema.keys())
+    sentenceKeys = set(splitSentences)
 
-    similarityMatrix = MultiVector(fieldEmbed, phrasesEmbed)
+    for word, vec in mergeEmbeddings.items():
+      normVec = self.__Normalize(cast(Vector, vec))
+      if word in schemaKeys:
+        fieldNameEmbeddings[word]
+      elif word in sentenceKeys:
+        contentEmbeddings[word] = normVec
 
-    result: dict[str, str] = {f: defaultValue for f in fieldNames}
+    templates: list[DocumentTemplate] = []
+    for fieldName, fieldVec in fieldNameEmbeddings.items():
+      best = DocumentTemplate(fieldName=fieldName)
 
-    for fieldIdx, field in enumerate(fieldNames):
-      sims = similarityMatrix[fieldIdx]  # type: ignore
+      for phrase, phraseVec in contentEmbeddings.items():
+        score = self.__CosineSimilarity(fieldVec, phraseVec) * 100
+        if score > best.similarityScore:
+          best.fieldPhrase = self.__CleanString(phrase)
+          best.similarityScore = score
 
-      ranked = sorted(
-        [(float(score), phrases[i]) for i, score in enumerate(sims)],
-        key=lambda x: x[0],
-        reverse=True,
-      )
+      templates.append(best)
 
-      filtered = [(s, p) for s, p in ranked if s >= threshold]
-      if not filtered:
+    print(f'templates: {templates}')
+
+    return {t.fieldName: t.fieldPhrase for t in templates}
+
+  def __SplitSentences(self, content: str, sentenceSplit: int) -> list[str]:
+    # Extract sentences ending in . ! ? and keep punctuation.
+    sentences = re.compile(r'[^\s].*?[.!?](?=\s|$)').findall(content)
+
+    pieces: list[str] = []
+    for sentence in sentences:
+      if not sentence:
         continue
 
-      if field[-1:-2] == '[]':
-        result[field] = separator.join(p for _, p in filtered[:topK])
-      else:
-        result[field] = filtered[0][1]
-    return result
+      start = 0
+      length = len(sentence)
+      for i in range(max(1, sentenceSplit)):
+        end = (
+          start
+          + length // sentenceSplit
+          + (1 if i < (length % sentenceSplit) else 0)
+        )
+        pieces.append(sentence[start:end])
+        start = end
 
-  def __SplitPhrases(self, content: str) -> list[str]:
-    parts = [p.strip() for p in content.split(',')]
-    return [p for p in parts if p]
+    return [p.strip() for p in pieces if p.strip()]
 
-  def __Normalize(self, text: str) -> str:
-    text = text.lower()
-    text = re.sub(r'[^a-z0-9\s]+', '', text)
-    text = re.sub(r'\s+', '', text).strip()
-    return text
+  async def __GenerateKeywordEmbeddings(
+    self, keywords: list[str], k: int = 25
+  ) -> dict[str, Vector]:
+    embeddings = await self.llm.GetEmbeddingsForContent(keywords)
+    return dict(zip(keywords, cast(list[Vector], embeddings)))
+
+  def __Normalize(self, v):
+    norm = math.sqrt(sum(x * x for x in v))
+    return [x / norm for x in v] if norm else v
+
+  def __CosineSimilarity(self, a, b) -> float:
+    return sum(x * y for x, y in zip(a, b))
+
+  def __CleanString(self, phrase: str) -> str:
+    """
+    Convert a phrase into a safe Typesense-ish field value.
+    Example: "Creation Date" -> "creation date"
+    """
+    phrase = re.sub(r'[()\[\]{}\"\.]', '', phrase)
+    phrase = re.sub(r'\s+', ' ', phrase).strip().lower()
+
+    allowed = set('abcdefghijklmnopqrstuvwxyz0123456789_ ')
+    return ''.join(ch for ch in phrase if ch in allowed)

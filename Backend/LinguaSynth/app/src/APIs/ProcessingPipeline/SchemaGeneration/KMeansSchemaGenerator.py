@@ -1,6 +1,4 @@
-from calendar import c
 from dataclasses import asdict
-from multiprocessing import process
 import time
 import json
 import re
@@ -19,8 +17,6 @@ from APIs.ProcessingPipeline.SchemaGeneration.ISchemaGenerator import (
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import LLM_Object
 from Utils.ServerResponse import ServerResponseV2
-from regex import W
-from scipy import cluster
 from sklearn.cluster import KMeans
 
 
@@ -78,7 +74,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
         ]
       schemaName = self.RepresentativePhrase(
         clusterGroups[clusterId], keywordEmbeddings
-      ).replace(' ', '_')
+      ).replace(' ', ' ')
       generatedSchema: SchemaTemplate = await self.__BuildTypesenseSchema(
         schemaName, clusterGroups[clusterId]
       )
@@ -87,7 +83,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
     # Upload the processed file to Minio
     for schema in newSchemas:
       jsonSchema = json.dumps(asdict(schema))
-      print(f'schema: {schema.name}')
+      # print(f'schema: {schema.name}')
       await self.fileUploader.UploadDocumentContentAsFile(
         jsonSchema, f'{targetBucketName}-{schema.name}.txt'
       )
@@ -140,7 +136,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
       re.sub(r'\s+', ' ', re.sub(r'[()\[\]{}\"\.]', '', k)) for k in phrase
     ]
     name: str = str().join(clean)
-    name = name.strip().lower().replace(' ', '_')
+    name = name.strip().lower().replace(' ', ' ')
     # Remove characters you don't want (very simple version)
     allowed = 'abcdefghijklmnopqrstuvwxyz0123456789_'
     name = ''.join(ch for ch in name if ch in allowed)
@@ -236,7 +232,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
   best describes the overall meaning of a group of related keywords.
   """
 
-  def normalize(self, v):
+  def Normalize(self, v):
     norm = math.sqrt(sum(x * x for x in v))
     return [x / norm for x in v] if norm else v
 
@@ -260,7 +256,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
         cleanKeywords.append(word)
 
     keys = list(embeddings.keys())
-    vectors = [self.normalize(embeddings[k]) for k in keys]
+    vectors = [self.Normalize(embeddings[k]) for k in keys]
 
     center = self.centroid(vectors)
 
@@ -310,7 +306,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
     # Normalize each vector so magnitude does not influence similarity.
     # Direction alone should define how representative a keyword is.
     vectors: list = [
-      self.normalize(keywordEmbeddings[k]) for k in keywordEmbeddings.keys()
+      self.Normalize(keywordEmbeddings[k]) for k in keywordEmbeddings.keys()
     ]
 
     # Compute the geometric center of all keyword vectors.
@@ -329,7 +325,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
 
     # Merge the top candidates into a single phrase.
     # Underscores preserve token boundaries for downstream processing.
-    return '_'.join(key for key, _ in scored[:top_n]).lower()
+    return ' '.join(key for key, _ in scored[:top_n]).lower()
 
   async def GenerateSummaryWord(self, phrase: str) -> str:
     """
@@ -345,9 +341,9 @@ class KMeansSchemaGenerator(ISchemaGenerator):
       f'Summaries the following word or sentence into a single high search keyword for use in a search engine. Phrase: {phrase} \n Only respond with the result and nothing else. Do not use unicode characters.'
     )
     if len(result.Response) > 25 or len(result.Response) == 0:
-      return phrase.replace(' ', '_')
+      return phrase.replace(' ', ' ')
     else:
-      return result.Response.lower().replace(' ', '_').replace('\n', '')
+      return result.Response.lower().replace(' ', ' ').replace('\n', '')
 
 
 # endregion
