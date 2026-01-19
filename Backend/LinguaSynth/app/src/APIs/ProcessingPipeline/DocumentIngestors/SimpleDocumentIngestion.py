@@ -26,6 +26,9 @@ class SimpleDocumentIngestion(IDocumentIngestor):
   ) -> tuple[str, bool, StatisticObject]:
     await super().IndexDocument(documentName, document, collectionName)
 
+    # for doc in document.keys():
+    #   document[doc] = document[doc].replace('"', '').replace('\\', '')
+
     result = self.typesense.IndexFileIntoCollection(
       json.dumps(ast.literal_eval(str(document))), collectionName
     )

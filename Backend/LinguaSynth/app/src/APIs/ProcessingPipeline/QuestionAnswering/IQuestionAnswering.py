@@ -9,7 +9,7 @@ from typesense.types.collection import CollectionSchema
 @dataclass
 class DocumentReference:
   DocumentName: str
-  Confidence: float
+  Confidence: float = 0
 
 
 @dataclass

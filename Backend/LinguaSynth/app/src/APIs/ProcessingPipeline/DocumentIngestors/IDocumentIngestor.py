@@ -13,7 +13,7 @@ class StatisticObject:
 
 @dataclass
 class DocumentIngestionResponseObject:
-  ProcessName: str = 'placeholder'
+  ProcessName: str = 'default-indexer'
   Statistics: list[StatisticObject] = field(
     default_factory=list[StatisticObject]
   )

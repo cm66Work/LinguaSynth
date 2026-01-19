@@ -1,4 +1,8 @@
+from dataclasses import asdict
+import json
 import time
+import csv
+import io
 from typing import Any, AsyncGenerator
 from APIs.ProcessingPipeline.FileProcessingPipeline import (
   FileProcessingPipelines,
@@ -90,3 +94,48 @@ class DocumentProcessor:
     currentResponse.Message = 'Finished'
     currentResponse.ProcessResponseObjects = lastProcessesResponseObject
     yield self.serverResponse.GenerateServerResponse(currentResponse)
+
+    # Upload results in the event our browser crashes.
+    currentJsonResponse = json.dumps(asdict(currentResponse), indent=1)
+    currentJsonResponse = json.loads(currentJsonResponse)
+    # We have to flatten the output.
+    flatData = []
+
+    for document in currentJsonResponse['ProcessResponseObjects']:
+      for stat in document['Statistics']:
+        flatData.append(
+          {
+            # ServerResponseObject fields
+            'Success': currentJsonResponse.get('Success'),
+            'Message': currentJsonResponse.get('Message'),
+            'Finished': currentJsonResponse.get('Finished'),
+            # FilePipelineResponseObject fields
+            'Total Time To Complete': currentJsonResponse.get(
+              'Total Time To Complete'
+            ),
+            'Documents Processed': currentJsonResponse.get(
+              'DocumentsProcessed'
+            ),
+            'Total Documents': currentJsonResponse.get('TotalDocuments'),
+            # DocumentResponseObject fields
+            'Process Name': document.get('ProcessName'),
+            # StatisticsObject fields
+            'Document Name': stat.get('DocumentName'),
+            'Processing Time': stat.get('ProcessingTime'),
+            'File Size Before': stat.get('FileSizeBefore'),
+            'File Size After': stat.get('FileSizeAfter'),
+          }
+        )
+
+    memOutput = io.StringIO()
+    writer = csv.DictWriter(memOutput, fieldnames=flatData[0].keys())
+    writer.writeheader()
+    writer.writerows(flatData)
+
+    csvString = memOutput.getvalue()
+    memOutput.close()
+    self.minio.UploadDocumentToStorageServer(
+      'n-normalization-results',
+      csvString,
+      'n-normalization.csv',
+    )

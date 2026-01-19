@@ -35,7 +35,9 @@ class DefaultQuestionAnswering(IQuestionAnswering):
       collection['name'], json.dumps(userQuery)
     )
     for document in typesenseSearchResponse.Data['documents']:
-      self.responseObject.References.append(document['document']['id'])
+      self.responseObject.References.append(
+        DocumentReference(document['document']['id'], -1)
+      )
 
     self.responseObject.ProcessingTime = (time.time() * 1000) - self.startTime
     return True, self.responseObject

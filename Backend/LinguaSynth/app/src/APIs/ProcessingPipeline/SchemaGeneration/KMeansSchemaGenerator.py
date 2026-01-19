@@ -57,6 +57,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
     for kw, cid in zip(keywords, labels):
       clusterGroups.setdefault(cid, []).append(kw)
     newSchemas: list[SchemaTemplate] = []
+    print(f'Processing {len(clusterGroups)} cluster groups')
     for clusterId in clusterGroups:
       # We dont want schemas that are two small, < 3 tags, so ignore them.
       if len(clusterGroups[clusterId]) < 3:
@@ -79,8 +80,10 @@ class KMeansSchemaGenerator(ISchemaGenerator):
         schemaName, clusterGroups[clusterId]
       )
       newSchemas.append(generatedSchema)
+    print('Cluster groups processed')
 
     # Upload the processed file to Minio
+
     for schema in newSchemas:
       jsonSchema = json.dumps(asdict(schema))
       # print(f'schema: {schema.name}')
@@ -117,14 +120,18 @@ class KMeansSchemaGenerator(ISchemaGenerator):
     :param k: Description
     :type k: int
     """
+    print('Identifying clusters')
     kmeans = KMeans(n_clusters=k, random_state=42)
     labels = kmeans.fit_predict(embeddings)
+    print('Clusters Identified')
     return labels
 
   async def __GenerateKeywordEmbeddings(
     self, keywords: list[str], k: int = 25
   ) -> dict[str, float]:
+    print('Generating embeddings')
     embeddings = await self.llm.GetEmbeddingsForContent(keywords)
+    print('Embeddings Generated')
     return dict(zip(keywords, embeddings))
 
   def clean_field_name(self, phrase: str) -> str:

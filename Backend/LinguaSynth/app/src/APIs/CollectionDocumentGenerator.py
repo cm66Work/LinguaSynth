@@ -1,8 +1,9 @@
-from multiprocessing import process
-import time
-from dataclasses import dataclass
+import csv
+from dataclasses import asdict
+import io
 import json
-from typing import AsyncGenerator, cast, List, Dict, Any
+import time
+from typing import AsyncGenerator, cast, Any
 from APIs.ProcessingPipeline import CollectionDocumentGenerationPipeline
 from APIs.ProcessingPipeline.CollectionDocumentGenerationPipeline import (
   CollectionDocumentGenerationPipeline,
@@ -108,6 +109,45 @@ class CollectionDocumentGenerator:
       currentResponse.TotalTimeToComplete / currentResponse.DocumentsProcessed
     )
     yield self.serverResponse.GenerateServerResponse(currentResponse)
+
+    # Upload results in the event our browser crashes.
+    currentJsonResponse = json.dumps(asdict(currentResponse), indent=1)
+    currentJsonResponse = json.loads(currentJsonResponse)
+    # We have to flatten the output.
+    data = currentJsonResponse
+    flatData = []
+
+    for process in data.get('IngestedResponseObjects', []):
+      for stat in process.get('Statistics', []):
+        flatData.append(
+          {
+            # Top-level SchemaPipelineResponseObject
+            'Success': data.get('Success'),
+            'Message': data.get('Message'),
+            'Finished': data.get('Finished'),
+            'Total Time To Complete': data.get('TotalTimeToComplete'),
+            'Number Of Documents To Process': data.get(
+              'NumberOfDocumentsToProcess'
+            ),
+            # Ingested Response Objects
+            'Process Name': process.get('ProcessName'),
+            # Statistics Object
+            'Processing Time': stat.get('ProcessingTime'),
+          }
+        )
+
+    memOutput = io.StringIO()
+    writer = csv.DictWriter(memOutput, fieldnames=flatData[0].keys())
+    writer.writeheader()
+    writer.writerows(flatData)
+
+    csvString = memOutput.getvalue()
+    memOutput.close()
+    self.minio.UploadDocumentToStorageServer(
+      'n-document-generation-results',
+      csvString,
+      'n-document-generation.csv',
+    )
 
   def __ConvertToDocumentSchema(
     self, schema: CollectionSchema

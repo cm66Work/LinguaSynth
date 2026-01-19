@@ -16,6 +16,7 @@ import APIs.CollectionDocumentGenerator
 import APIs.Iterate
 import APIs.ProcessingPipeline.DocumentIngestionPipeline
 import APIs.ProcessingPipeline.QuestionAnsweringPipeline
+import APIs.TestingPipeline.TestRunnerPipeline
 import APIs.UserQuery
 import json
 import APIs.ProcessingPipeline
@@ -53,6 +54,10 @@ QuestionAnsweringPipeline = (
   APIs.ProcessingPipeline.QuestionAnsweringPipeline.QuestionAnsweringPipeline(
     minioObject, typesenseObject, llmObject, serverResponseV2
   )
+)
+
+TestRunnerPipeline = APIs.TestingPipeline.TestRunnerPipeline.TestRunner(
+  typesenseObject, minioObject, llmObject, serverResponseV2
 )
 
 # --- Globals ---
@@ -453,3 +458,18 @@ async def GetAllSchemas() -> list[CollectionSchema]:
 @app.post('/iterate/')
 async def IterateAPI():
   return await APIs.Iterate.Iterate(typesenseObject, minioObject)
+
+
+@app.post('/run-tests/')
+async def RunTests(inputBucket: str, answersBucket: str):
+  async def EventStream():
+    async for response in TestRunnerPipeline.RunTests(
+      inputBucket,
+      answersBucket,
+      await GetAllSchemas(),
+      outputBucket='testResults',
+    ):
+      response = json.dumps(asdict(response)) + '\n'
+      yield response
+
+  return StreamingResponse(EventStream(), media_type='application/json')

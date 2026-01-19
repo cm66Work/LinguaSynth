@@ -1,3 +1,7 @@
+import csv
+from dataclasses import asdict
+import io
+import json
 import time
 from typing import Any, AsyncGenerator, cast
 from APIs.ProcessingPipeline.SchemaGeneration.ISchemaGenerator import (
@@ -88,3 +92,41 @@ class Schema:
       time.time() * 1000
     ) - generationStartTime
     yield self.serverResponse.GenerateServerResponse(currentResponse)
+
+    # Upload results in the event our browser crashes.
+    currentJsonResponse = json.dumps(asdict(currentResponse), indent=1)
+    currentJsonResponse = json.loads(currentJsonResponse)
+    # We have to flatten the output.
+    data = currentJsonResponse
+    flatData = []
+
+    for process in data.get('ProcessResponseObjects', []):
+      for stat in process.get('Statistics', []):
+        flatData.append(
+          {
+            # Top-level SchemaPipelineResponseObject
+            'Success': data.get('Success'),
+            'Message': data.get('Message'),
+            'Finished': data.get('Finished'),
+            'Total Time To Complete': data.get('TotalTimeToComplete'),
+            'Total Documents': data.get('TotalDocuments'),
+            # GeneratorResponseObject
+            'Process Name': process.get('ProcessName'),
+            # StatisticsObject
+            'Target Schema Name': stat.get('targetSchemaName'),
+            'Processing Time': stat.get('ProcessingTime'),
+          }
+        )
+
+    memOutput = io.StringIO()
+    writer = csv.DictWriter(memOutput, fieldnames=flatData[0].keys())
+    writer.writeheader()
+    writer.writerows(flatData)
+
+    csvString = memOutput.getvalue()
+    memOutput.close()
+    self.minio.UploadDocumentToStorageServer(
+      'n-schema-generation-results',
+      csvString,
+      'n-schema-generation.csv',
+    )

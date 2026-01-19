@@ -80,9 +80,9 @@ class CollectionDocumentGenerationPipeline:
         self.serverResponse,
         self.targetBucket,
         self.collectionName,
-        'scann-based-document-generation',
+        'ann-based-document-generation',
       ),
-      'scann-based-document-generation',
+      'ann-based-document-generation',
     )
 
   def AddIngestionProcessor(
