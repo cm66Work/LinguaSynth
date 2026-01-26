@@ -71,15 +71,15 @@ class DocumentProcessor:
         bucketName, document.object_name
       ).Data['content']
       result = await fileProcessingPipeline.Run(content, document.object_name)
-      # print('\n', result[0])
       if result[1]:
-        # print(
         await fileUploader.UploadDocumentContentAsFile(
           content, document.object_name
         )
-        # )
         lastProcessesResponseObject = result[0]
         processedDocuments.append(document.object_name)
+
+      # region Generate document Questions
+      # endregion
 
       currentResponse.Message = f'{document.object_name}: Done!'
       currentResponse.DocumentsProcessed += 1

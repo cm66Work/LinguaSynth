@@ -81,7 +81,7 @@ class MinIO_Object:
     )
     currentResponse.Data['content'] = contentBytes.decode('utf-8')
     return self.client.serverResponseUtil.GenerateServerResponse(
-      currentResponse
+      currentResponse, generateLog=False
     )
 
   def DeleteDocument(self, documentName: str, bucketName: str) -> bool:

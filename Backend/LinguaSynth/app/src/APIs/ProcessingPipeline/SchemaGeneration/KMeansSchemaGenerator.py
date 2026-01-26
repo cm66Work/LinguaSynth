@@ -42,6 +42,15 @@ class KMeansSchemaGenerator(ISchemaGenerator):
     await super().GenerateSchema(keywords, targetBucketName)
     startTime = time.time() * 1000
 
+    # remove duplicate words
+    uniqueWordList: list[str] = []
+    for word in keywords:
+      if word not in uniqueWordList:
+        uniqueWordList.append(word)
+
+    keywords = uniqueWordList
+    print(f'Unique keywords: {len(uniqueWordList)}')
+
     # Keywords and then their embedded vector
     keywordEmbeddings: dict[
       str, float
@@ -49,7 +58,7 @@ class KMeansSchemaGenerator(ISchemaGenerator):
 
     # group the keywords by the cluster id
     labels = self.__IdentifyClusters(
-      embeddings=[embed for embed in keywordEmbeddings.values()], k=4
+      embeddings=[embed for embed in keywordEmbeddings.values()], k=1
     )
     # The cluster groups are the new Schemas.
     # - A group cluster means that all vectors in that cluster share a similar meaning to one another.
@@ -76,6 +85,10 @@ class KMeansSchemaGenerator(ISchemaGenerator):
       schemaName = self.RepresentativePhrase(
         clusterGroups[clusterId], keywordEmbeddings
       ).replace(' ', ' ')
+      schemaName = schemaName[:120] if len(schemaName) > 120 else schemaName
+      schemaName = schemaName.replace(' ', '_')
+      schemaName = self.clean_field_name(schemaName)
+      schemaName = schemaName.replace('_', ' ')
       generatedSchema: SchemaTemplate = await self.__BuildTypesenseSchema(
         schemaName, clusterGroups[clusterId]
       )
@@ -347,6 +360,9 @@ class KMeansSchemaGenerator(ISchemaGenerator):
     result = await self.llm.Generate(
       f'Summaries the following word or sentence into a single high search keyword for use in a search engine. Phrase: {phrase} \n Only respond with the result and nothing else. Do not use unicode characters.'
     )
+
+    # Summarize the following word or sentence into one broad, clear search phrase that describes its main topic. Keep it general, use simple lowercase words separated by spaces, avoid symbols or punctuation, and limit the result to a few words. Phrase: {phrase} \nOnly respond with the result and nothing else.
+
     if len(result.Response) > 25 or len(result.Response) == 0:
       return phrase.replace(' ', ' ')
     else:

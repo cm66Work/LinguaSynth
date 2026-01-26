@@ -1,3 +1,6 @@
+import asyncio
+from concurrent.futures import ProcessPoolExecutor
+from dataclasses import dataclass
 import csv
 from dataclasses import asdict
 import io
@@ -8,6 +11,9 @@ from APIs.ProcessingPipeline import CollectionDocumentGenerationPipeline
 from APIs.ProcessingPipeline.CollectionDocumentGenerationPipeline import (
   CollectionDocumentGenerationPipeline,
   CollectionDocumentGenerationPipelineResponseObject,
+)
+from APIs.ProcessingPipeline.CollectionDocumentGenerators.ICollectionDocumentGenerator import (
+  CollectionDocumentGenerationResponseObject,
 )
 from ObjectInterfaces.MinIO_Object import MinIO_Object
 from ObjectInterfaces.LLM_Object import (
@@ -47,6 +53,8 @@ class CollectionDocumentGenerator:
         self.minio, self.llm, self.serverResponse, targetDataBucket, schemaName
       )
     )
+    self.tempPipeline = pipeline
+
     indexingStartTime: float = time.time() * 1000
     if not await self.minio.BucketExists(targetDataBucket):
       currentResponse.Message = (
@@ -82,6 +90,7 @@ class CollectionDocumentGenerator:
     )
     processedDocuments: int = 0
     for document in self.minio.GetObjectsInBucket(targetDataBucket):
+      lastDocumentProcessingTime = time.time()
       currentResponse.DocumentsProcessed += 1
       if document.object_name is None:
         continue
@@ -97,7 +106,10 @@ class CollectionDocumentGenerator:
       if result[1]:
         currentResponse.IngestedResponseObjects = result[0]
       processedDocuments += 1
-      print(f'Processed: {processedDocuments}/{totalDocuments} documents.')
+      timeTaken = time.time() - lastDocumentProcessingTime
+      print(
+        f'Processed: {processedDocuments}/{totalDocuments} documents. ETA: {timeTaken * (totalDocuments - processedDocuments)}'
+      )
 
     currentResponse.Success = True
     currentResponse.Finished = True

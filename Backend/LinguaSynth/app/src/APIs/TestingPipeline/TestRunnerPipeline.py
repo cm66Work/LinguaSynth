@@ -39,6 +39,7 @@ class Question:
 class TestResponse(ServerResponseObject):
   CorrectQuestions: int = 0
   IncorrectQuestions: int = 0
+  CanNotAnswer: int = 0
   AverageConfidence: float = 0.0
   TotalTimeToComplete: float = 0
   Questions: list[Question] = field(default_factory=list[Question])
@@ -100,6 +101,7 @@ class TestRunner:
         # Top-level SchemaPipelineResponseObject
         'Correct Questions': data.get('CorrectQuestions'),
         'Incorrect Questions': data.get('IncorrectQuestions'),
+        'Can Not Answer': data.get('CanNotAnswer'),
         'Total Time To Complete': data.get('TotalTimeToComplete'),
         'Average Confidence': data.get('AverageConfidence'),
       }
@@ -119,29 +121,46 @@ class TestRunner:
     )
 
   def CheckAnswers(self, questions: list[Question]) -> list[Question]:
-    questionsAsked = 0
+    self.currentResponse.AverageConfidence = 0
+    self.currentResponse.CanNotAnswer = 0
+    self.currentResponse.CorrectQuestions = 0
+    self.currentResponse.IncorrectQuestions = 0
     for i in range(len(questions)):
       if len(questions[i].CorrectDocumentId) <= 0:
+        self.currentResponse.CanNotAnswer += 1
         continue
-      questionsAsked += 1
       correct = 0
       incorrect = 0
+      # for returnedReference in questions[i].DocumentGivenId:
+      #   if returnedReference in questions[i].CorrectDocumentId:
+      #     correct += 1
       for returnedReference in questions[i].DocumentGivenId:
-        if returnedReference not in questions[i].CorrectDocumentId:
-          incorrect += 1
-        else:
+        if returnedReference in questions[i].CorrectDocumentId:
           correct += 1
+        else:
+          incorrect += 1
 
-      questions[i].Confidence = correct / len(questions[i].CorrectDocumentId)
-      self.currentResponse.AverageConfidence += questions[i].Confidence
-      if questions[i].Confidence > 0.5:
+      accuracy = 0
+      if len(questions[i].DocumentGivenId) > 0:
+        accuracy = (correct / len(questions[i].DocumentGivenId)) * 100
+      if accuracy > 0.45:
         self.currentResponse.CorrectQuestions += 1
       else:
         self.currentResponse.IncorrectQuestions += 1
 
+      self.currentResponse.AverageConfidence += accuracy
+
+      # questions[i].Confidence = correct / len(questions[i].CorrectDocumentId)
+
+      # self.currentResponse.AverageConfidence += questions[i].Confidence
+      # if questions[i].Confidence > 0.5:
+      #   self.currentResponse.CorrectQuestions += 1
+      # else:
+      #   self.currentResponse.IncorrectQuestions += 1
+
     self.currentResponse.AverageConfidence = (
-      self.currentResponse.AverageConfidence / questionsAsked
-    ) * 100
+      self.currentResponse.AverageConfidence / len(questions)
+    )
     return questions
 
   async def TestSystem(

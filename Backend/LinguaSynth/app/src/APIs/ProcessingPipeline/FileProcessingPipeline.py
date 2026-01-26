@@ -37,35 +37,35 @@ class FileProcessingPipelines:
     self.__InitProcessors()
 
   def __InitProcessors(self):
-    self.AddProcessor(
-      KeywordExtractionDocumentProcessor.KeywordExtractionDocumentProcessor(
-        self.minio, self.serverResponse, 'keyword-extraction-raw-database'
-      ),
-      'key_word_extraction',
-    )
-    self.AddProcessor(
-      RAKEExtraction.RAKEExtraction(
-        self.minio, self.serverResponse, 'rake-extraction-raw-database'
-      ),
-      'rake_extraction',
-    )
-    self.AddProcessor(
-      YAKEExtraction.YAKEExtraction(
-        self.minio, self.serverResponse, 'yake-extraction-raw-database'
-      ),
-      'yake_extraction',
-    )
-    self.AddProcessor(
-      TokenizationExtraction.TokenizationExtraction(
-        self.minio, self.serverResponse, 'token-extraction-raw-database'
-      ),
-      'token_extraction',
-    )
+    # self.AddProcessor(
+    #   KeywordExtractionDocumentProcessor.KeywordExtractionDocumentProcessor(
+    #     self.minio, self.serverResponse, 'keyword-normalization'
+    #   ),
+    #   'key_word_normalization',
+    # )
+    # self.AddProcessor(
+    #   RAKEExtraction.RAKEExtraction(
+    #     self.minio, self.serverResponse, 'rake-normalization'
+    #   ),
+    #   'rake_normalization',
+    # )
+    # self.AddProcessor(
+    #   YAKEExtraction.YAKEExtraction(
+    #     self.minio, self.serverResponse, 'yake-normalization'
+    #   ),
+    #   'yake_normalization',
+    # )
+    # self.AddProcessor(
+    #   TokenizationExtraction.TokenizationExtraction(
+    #     self.minio, self.serverResponse, 'token-normalization'
+    #   ),
+    #   'token_extraction',
+    # )
     self.AddProcessor(
       RawTextExtraction.RawTextExtraction(
-        self.minio, self.serverResponse, 'raw-text-extraction-raw-database'
+        self.minio, self.serverResponse, 'raw-no-normalization'
       ),
-      'raw_extraction',
+      'raw_no_normalization',
     )
 
   def AddProcessor(self, processor: IDocumentProcessor, processName: str):

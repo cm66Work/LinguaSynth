@@ -1,4 +1,5 @@
 import time
+import ast
 from dataclasses import dataclass, field
 from typing import AsyncGenerator, Any, cast
 from APIs.ProcessingPipeline.DocumentIngestors.IDocumentIngestor import (
@@ -56,27 +57,31 @@ class DocumentIngestionPipeline:
     startTime = time.time() * 1000
     currentResponse.CollectionBeingIngestedInto = schemaName
     yield self.serverResponse.GenerateServerResponse(currentResponse)
+    totalNumDocs: int = self.minio.GetNumberOfObjectsInBucket(
+      documentCollectionBucket
+    )
+    processedNumDocs: int = 0
     for document in self.minio.GetObjectsInBucket(documentCollectionBucket):
       currentResponse.NumberOfProcessedDocuments += 1
       if document.object_name is None:
         continue
       for i in range(0, len(self.ingestionProcessors)):
+        documentContent: dict[str, str] = ast.literal_eval(
+          self.minio.GetContentOfBucketObject(
+            documentCollectionBucket, document.object_name
+          ).Data['content']
+        )
         result = await self.ingestionProcessors[i].IndexDocument(
           document.object_name,
-          cast(
-            dict[str, str],
-            (
-              self.minio.GetContentOfBucketObject(
-                documentCollectionBucket, document.object_name
-              ).Data['content']
-            ),
-          ),
+          documentContent,
           schemaName,
         )
+        processedNumDocs += 1
 
         self.pipelineResponseObjects[i].Statistics.append(
-          result[2] if result[1] else StatisticObject('error', -1)
+          result[2] if result[1] else StatisticObject(f'error: {result[0]}', -1)
         )
+      print(f'indexed {processedNumDocs}/{totalNumDocs}')
 
     currentResponse.TotalRunTime = (time.time() * 1000) - startTime
     currentResponse.TotalTimeDividedByDocuments = (
